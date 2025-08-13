@@ -1,0 +1,6 @@
+@Mobile.Remote.Toolkit_HostAddress = http://localhost:5096
+
+GET {{Mobile.Remote.Toolkit_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
