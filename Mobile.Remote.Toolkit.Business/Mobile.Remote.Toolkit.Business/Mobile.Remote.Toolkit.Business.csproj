@@ -6,4 +6,18 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <Folder Include="Commands\iOS\" />
+    <Folder Include="Models\Requests\iOS\" />
+    <Folder Include="Models\Responses\iOS\" />
+    <Folder Include="Queries\iOS\" />
+    <Folder Include="Utils\Android\" />
+    <Folder Include="Utils\iOS\" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<PackageReference Include="MediatR" Version="11.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.3.0" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />
+  </ItemGroup>
 </Project>
