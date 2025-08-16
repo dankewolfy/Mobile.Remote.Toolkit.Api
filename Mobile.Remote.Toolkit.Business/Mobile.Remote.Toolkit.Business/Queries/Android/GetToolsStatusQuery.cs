@@ -1,17 +1,25 @@
 ﻿using MediatR;
+using Microsoft.Extensions.Logging;
+
 using Mobile.Remote.Toolkit.Business.Commands.Android;
 using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 using Mobile.Remote.Toolkit.Business.Queries.Base;
+using Mobile.Remote.Toolkit.Business.Services.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Queries.Android
 {
-    public sealed class GetToolsStatusQuery : IRequest<AndroidToolsStatusResponse>
+    public sealed class GetToolsStatusQuery : BaseQuery<AndroidToolsStatusResponse>
     {
 
-
-        public class GetToolsStatusQueryHandler : BaseQueryHandler<GetToolsStatusQuery, AndroidToolsStatusResponse>
+        public class GetToolsStatusQueryHandler : AndroidBaseQueryHandler<GetToolsStatusQuery, AndroidToolsStatusResponse>
         {
-            public GetToolsStatusQueryHandler(IMediator mediator) : base(mediator) { }
+            public GetToolsStatusQueryHandler(
+                IAndroidDeviceService androidDeviceService, 
+                IMediator mediator, 
+                ILogger<GetToolsStatusQueryHandler> logger) 
+                : base(mediator, androidDeviceService)
+            {
+            }
 
             public async override Task<AndroidToolsStatusResponse> Handle(GetToolsStatusQuery request, CancellationToken cancellationToken)
             {

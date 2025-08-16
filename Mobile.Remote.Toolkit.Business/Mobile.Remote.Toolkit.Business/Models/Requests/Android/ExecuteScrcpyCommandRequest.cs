@@ -1,7 +1,5 @@
 ﻿#nullable disable
 
-using MediatR;
-
 using System.Runtime.Serialization;
 
 using Mobile.Remote.Toolkit.Business.Models.Responses;
