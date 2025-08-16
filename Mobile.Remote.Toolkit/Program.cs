@@ -2,6 +2,7 @@ using MediatR;
 using Mobile.Remote.Toolkit.Api.Hubs;
 using Mobile.Remote.Toolkit.Api.Services;
 using Mobile.Remote.Toolkit.Business.Commands.Android;
+using Mobile.Remote.Toolkit.Business.Commands.Base;
 using Mobile.Remote.Toolkit.Business.Queries.Android;
 using Mobile.Remote.Toolkit.Business.Services;
 using Mobile.Remote.Toolkit.Business.Services.Android;
@@ -49,6 +50,7 @@ builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Busine
 
 // MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
+    typeof(ExecuteAdbCommandHandler).Assembly,
     typeof(GetAndroidDevicesQuery).Assembly,
     typeof(Program).Assembly
 ));

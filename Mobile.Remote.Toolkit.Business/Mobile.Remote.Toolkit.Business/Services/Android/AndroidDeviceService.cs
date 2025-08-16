@@ -153,7 +153,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
                 _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
 
-                var result = await _processHelper.ExecuteCommandAsync("scrcpy", arguments, 3);
+                var result = await _processHelper.ExecuteCommandAsync("scrcpy", arguments, 15);
 
                 return new ActionResponse
                 {
