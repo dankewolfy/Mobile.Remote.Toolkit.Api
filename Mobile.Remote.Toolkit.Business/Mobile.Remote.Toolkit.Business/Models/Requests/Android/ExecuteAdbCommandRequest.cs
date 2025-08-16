@@ -1,7 +1,5 @@
 ﻿#nullable disable
 
-using MediatR;
-
 using System.Runtime.Serialization;
 
 using Mobile.Remote.Toolkit.Business.Models.Responses;
@@ -13,7 +11,7 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
     /// 
     /// </summary>
     [DataContract]
-    public sealed class ExecuteAdbCommandRequest : BaseRequest, IRequest<ActionResponse>
+    public sealed record ExecuteAdbCommandRequest : BaseRequest<ActionResponse>
     {
         /// <summary>
         /// 

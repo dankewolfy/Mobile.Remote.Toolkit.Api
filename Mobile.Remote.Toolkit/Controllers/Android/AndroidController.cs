@@ -100,12 +100,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="request">Comando a ejecutar</param>
         /// <returns>Resultado del comando</returns>
         [HttpPost("devices/{serial}/adb")]
-        public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbCommandRequest request)
-        {
-            request.Serial = serial;
-            //ActionResponse response = await Mediator.Send(request);
-            return Ok(request);
-        }
+        public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbCommandRequest request) => Ok(await Mediator.Send(request with { Serial = serial }));
 
         [HttpGet("devices")]
         public async Task<IActionResult> GetDevices([FromQuery] GetAndroidDevicesRequest request)
@@ -134,9 +129,6 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// </summary>
         /// <returns>Estado de las herramientas</returns>
         [HttpGet("tools/status")]
-        public async Task<ActionResult<object>> GetToolsStatus()
-        {
-            return default;
-        }
+        public async Task<ActionResult<object>> GetToolsStatus() => Ok(await Mediator.Send(new GetToolsStatusQuery()));
     }
 }

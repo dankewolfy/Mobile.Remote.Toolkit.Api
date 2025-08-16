@@ -13,7 +13,7 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
     /// 
     /// </summary>
     [DataContract]
-    public sealed class ExecuteScrcpyCommandRequest : BaseRequest, IRequest<ActionResponse>
+    public sealed record ExecuteScrcpyCommandRequest : BaseRequest<ActionResponse>
     {
         /// <summary>
         /// 
