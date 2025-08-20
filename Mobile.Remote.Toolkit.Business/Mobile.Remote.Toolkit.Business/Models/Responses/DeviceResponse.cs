@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Business.Models.Responses
+﻿#nullable disable
+
+namespace Mobile.Remote.Toolkit.Business.Models.Responses
 {
     public class DeviceResponse
     {

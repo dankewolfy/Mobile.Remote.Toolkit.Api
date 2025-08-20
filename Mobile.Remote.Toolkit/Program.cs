@@ -1,12 +1,11 @@
 using MediatR;
+
 using Mobile.Remote.Toolkit.Api.Hubs;
-using Mobile.Remote.Toolkit.Api.Services;
-using Mobile.Remote.Toolkit.Business.Commands.Android;
-using Mobile.Remote.Toolkit.Business.Commands.Base;
-using Mobile.Remote.Toolkit.Business.Queries.Android;
-using Mobile.Remote.Toolkit.Business.Services;
-using Mobile.Remote.Toolkit.Business.Services.Android;
 using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Business.Services;
+using Mobile.Remote.Toolkit.Business.Queries.Android;
+using Mobile.Remote.Toolkit.Business.Commands.Android;
+using Mobile.Remote.Toolkit.Business.Services.Android;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -49,11 +48,7 @@ builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Busine
 //builder.Services.AddHostedService<DeviceMonitoringBackgroundService>();
 
 // MediatR
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
-    typeof(ExecuteAdbCommandHandler).Assembly,
-    typeof(GetAndroidDevicesQuery).Assembly,
-    typeof(Program).Assembly
-));
+builder.Services.AddMediatR(typeof(Program).Assembly);
 
 // SignalR
 builder.Services.AddSignalR();

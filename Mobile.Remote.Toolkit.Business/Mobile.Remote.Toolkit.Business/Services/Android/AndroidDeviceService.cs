@@ -1,4 +1,7 @@
-﻿using System.Diagnostics;
+﻿#nullable disable
+
+using System.Diagnostics;
+
 using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Business.Utils;

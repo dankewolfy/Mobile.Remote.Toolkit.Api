@@ -27,7 +27,6 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         {
             var devices = await _androidService.GetConnectedDevicesAsync();
             var activeDevices = devices.Where(d => d.Active).ToList();
-            var screenshots = await _fileService.GetScreenshotFilesAsync();
 
             return Ok(new
             {
@@ -36,11 +35,6 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
                     total = devices.Count,
                     active = activeDevices.Count,
                     inactive = devices.Count - activeDevices.Count
-                },
-                screenshots = new
-                {
-                    total = screenshots.Count,
-                    totalSizeBytes = await GetTotalScreenshotsSizeAsync(screenshots)
                 },
                 system = new
                 {

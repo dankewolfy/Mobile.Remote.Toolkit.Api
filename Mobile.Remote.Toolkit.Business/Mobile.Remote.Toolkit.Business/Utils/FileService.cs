@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Business.Utils
+﻿#nullable disable
+
+namespace Mobile.Remote.Toolkit.Business.Utils
 {
     public class FileService : IFileService
     {
@@ -13,7 +15,7 @@
 
         public async Task<string> GetScreenshotsFolderAsync()
         {
-            return _screenshotsFolder;
+            return await Task.Run(() => _screenshotsFolder);
         }
 
         public async Task<List<string>> GetScreenshotFilesAsync(string serial = null)
@@ -26,14 +28,14 @@
 
                 if (!string.IsNullOrEmpty(serial))
                 {
-                    files = files.Where(f => Path.GetFileName(f).Contains(serial)).ToList();
+                    files = [.. files.Where(f => Path.GetFileName(f).Contains(serial))];
                 }
 
-                return files.Select(f => Path.GetFileName(f)).ToList();
+                return await Task.Run(() => files.Select(f => Path.GetFileName(f)).ToList());
             }
             catch
             {
-                return new List<string>();
+                return [];
             }
         }
 
@@ -54,7 +56,7 @@
                 var fullPath = Path.Combine(_screenshotsFolder, filePath);
                 if (File.Exists(fullPath))
                 {
-                    File.Delete(fullPath);
+                    await Task.Run(() => File.Delete(fullPath));
                     return true;
                 }
                 return false;
@@ -67,8 +69,11 @@
 
         public async Task<FileInfo> GetFileInfoAsync(string filePath)
         {
-            var fullPath = Path.Combine(_screenshotsFolder, filePath);
-            return File.Exists(fullPath) ? new FileInfo(fullPath) : null;
+            return await Task.Run(() =>
+            {
+                var fullPath = Path.Combine(_screenshotsFolder, filePath);
+                return File.Exists(fullPath) ? new FileInfo(fullPath) : null;
+            });
         }
 
         public async Task<string> SaveScreenshotAsync(string serial, byte[] content, string filename = null)

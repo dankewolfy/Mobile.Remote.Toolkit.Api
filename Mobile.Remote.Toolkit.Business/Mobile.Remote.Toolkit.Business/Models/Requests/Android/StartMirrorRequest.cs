@@ -2,6 +2,6 @@
 {
     public class StartMirrorRequest
     {
-        public Dictionary<string, object> Options { get; set; } = new();
+        public Dictionary<string, object> Options { get; set; } = [];
     }
 }

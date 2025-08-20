@@ -1,4 +1,6 @@
-﻿using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
+﻿#nullable disable
+
+using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Services
 {

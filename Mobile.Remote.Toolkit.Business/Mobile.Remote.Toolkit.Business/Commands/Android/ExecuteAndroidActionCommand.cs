@@ -1,4 +1,7 @@
-﻿using MediatR;
+﻿#nullable disable
+
+using MediatR;
+
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Business.Commands.Android

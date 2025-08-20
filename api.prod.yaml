@@ -1,0 +1,189 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    field.cattle.io/creatorId: user-mobile-toolkit
+    field.cattle.io/publicEndpoints: '[{"nodeName":"mobile-cluster:m-prod","addresses":["172.21.0.25"],"port":80,"protocol":"TCP","podName":"mobile-toolkit-api:mobile-remote-toolkit-prod","allNodes":false}]'
+  labels:
+    app: mobile-remote-toolkit-prod
+    cattle.io/creator: norman
+    workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-prod
+  name: mobile-remote-toolkit-prod
+  namespace: mobile-toolkit-api
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 2
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-prod
+  strategy:
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        cattle.io/timestamp: "2025-08-18T00:00:00Z"
+        field.cattle.io/ports: '[[{"containerPort":80,"dnsName":"mobile-remote-toolkit-prod-hostport","hostPort":80,"kind":"HostPort","name":"80tcp80","protocol":"TCP","sourcePort":80}]]'
+      labels:
+        app: mobile-remote-toolkit-prod
+        workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-prod
+    spec:
+      containers:
+        - env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Production
+            - name: ASPNETCORE_URLS
+              value: http://+80
+            - name: ForwardedHeaders_Enabled
+              value: "true"
+            - name: TZ
+              value: America/Mexico_City
+            - name: DOTNET_USE_POLLING_FILE_WATCHER
+              value: "false"
+          image: your-registry.com/mobile-toolkit/mobile-remote-toolkit-api:latest
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 10
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health/ready
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: mobile-remote-toolkit-prod
+          ports:
+            - containerPort: 80
+              name: 80tcp
+              protocol: TCP
+          resources:
+            limits:
+              memory: "1Gi"
+              cpu: "1000m"
+            requests:
+              memory: "512Mi"
+              cpu: "500m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            procMount: Default
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+          stdin: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          tty: true
+          volumeMounts:
+            - name: android-tools-volume
+              mountPath: /app/Tools
+              readOnly: false
+            - name: config-volume
+              mountPath: /app/appsettings.Production.json
+              subPath: appsettings.Production.json
+              readOnly: true
+      volumes:
+        - name: android-tools-volume
+          hostPath:
+            path: /opt/android-tools
+            type: DirectoryOrCreate
+        - name: config-volume
+          configMap:
+            name: mobile-remote-toolkit-config-prod
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: docker-registry-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mobile-remote-toolkit-prod-service
+  namespace: mobile-toolkit-api
+spec:
+  type: LoadBalancer
+  selector:
+    app: mobile-remote-toolkit-prod
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mobile-remote-toolkit-config-prod
+  namespace: mobile-toolkit-api
+data:
+  appsettings.Production.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft.AspNetCore": "Warning",
+          "Microsoft.Hosting.Lifetime": "Information"
+        }
+      },
+      "AllowedHosts": "*",
+      "AndroidTools": {
+        "AdbPath": "/app/Tools/Android/adb/adb",
+        "ScrcpyPath": "/app/Tools/Android/scrcpy/scrcpy",
+        "DefaultTimeout": 30000,
+        "MaxConcurrentDevices": 10
+      },
+      "SignalR": {
+        "HubUrl": "/deviceHub",
+        "KeepAliveInterval": "00:00:15",
+        "ClientTimeoutInterval": "00:00:30"
+      },
+      "HealthChecks": {
+        "Enabled": true,
+        "Endpoint": "/health"
+      }
+    }
+
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: mobile-remote-toolkit-ingress
+  namespace: mobile-toolkit-api
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - mobile-toolkit.yourdomain.com
+      secretName: mobile-toolkit-tls
+  rules:
+    - host: mobile-toolkit.yourdomain.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: mobile-remote-toolkit-prod-service
+                port:
+                  number: 80

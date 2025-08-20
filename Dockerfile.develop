@@ -1,0 +1,75 @@
+# Set the global ARG and use that value in each build-stage (ENV vars and ARG are scoped per build-stage)
+ARG BUILD_CONFIGURATION=Debug
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0-alpine AS base
+
+WORKDIR /app
+
+# Set environment variables and container port
+ENV TZ=America/Mexico_City
+ARG BUILD_CONFIGURATION
+ENV ASPNETCORE_ENVIRONMENT=Development
+ENV ASPNETCORE_URLS="http://+80"
+ENV ForwardedHeaders_Enabled=true
+ENV ASPNETCORE_BASEPATH="/mobile-toolkit"
+ENV DOTNET_USE_POLLING_FILE_WATCHER=true
+ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
+
+# Install required packages for Android tools and development
+RUN apk update && \
+    apk add --no-cache \
+    icu-libs \
+    icu-data-full \
+    android-tools \
+    ffmpeg \
+    curl \
+    wget \
+    bash \
+    procps
+
+EXPOSE 80
+
+FROM mcr.microsoft.com/dotnet/sdk:8.0-alpine AS build
+ARG BUILD_CONFIGURATION
+
+# Copy solution file and project files for restore
+WORKDIR /src
+
+COPY ["Mobile.Remote.Toolkit.sln", "."]
+COPY ["Mobile.Remote.Toolkit/Mobile.Remote.Toolkit.Api.csproj", "Mobile.Remote.Toolkit/"]
+COPY ["Mobile.Remote.Toolkit.Business/Mobile.Remote.Toolkit.Business/Mobile.Remote.Toolkit.Business.csproj", "Mobile.Remote.Toolkit.Business/Mobile.Remote.Toolkit.Business/"]
+COPY ["Mobile.Remote.Toolkit.Business/Mobile.Remote.Toolkit.Business.vbproj", "Mobile.Remote.Toolkit.Business/"]
+COPY ["Mobile.Remote.Toolkit.Domain/Mobile.Remote.Toolkit.Domain/Mobile.Remote.Toolkit.Domain.csproj", "Mobile.Remote.Toolkit.Domain/Mobile.Remote.Toolkit.Domain/"]
+
+# Restore packages
+RUN dotnet restore "Mobile.Remote.Toolkit/Mobile.Remote.Toolkit.Api.csproj" 
+
+# Copy and compile app and libraries
+COPY . .
+
+WORKDIR "/src/Mobile.Remote.Toolkit"
+
+RUN dotnet build Mobile.Remote.Toolkit.Api.csproj -c $BUILD_CONFIGURATION -o app 
+
+RUN dotnet publish Mobile.Remote.Toolkit.Api.csproj -c $BUILD_CONFIGURATION -o app 
+
+# Begin a new stage for the published app
+FROM base AS runtime
+ARG BUILD_CONFIGURATION
+
+WORKDIR /app
+
+COPY --from=build /src/Mobile.Remote.Toolkit/app ./
+
+# Copy Tools directory with Android utilities
+COPY --from=build /src/Tools ./Tools
+
+# Make sure Android tools have execute permissions
+RUN chmod +x /app/Tools/Android/adb/* || true
+RUN chmod +x /app/Tools/Android/scrcpy/* || true
+
+# Add health check for development
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD curl -f http://localhost/health || exit 1
+
+ENTRYPOINT ["dotnet", "Mobile.Remote.Toolkit.Api.dll"]

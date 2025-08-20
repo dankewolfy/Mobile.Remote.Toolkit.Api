@@ -29,7 +29,7 @@ namespace Mobile.Remote.Toolkit.Api.Hubs
             await Clients.Caller.SendAsync("DeviceStatus", status);
         }
 
-        public override async Task OnDisconnectedAsync(Exception exception)
+        public override async Task OnDisconnectedAsync(Exception? exception)
         {
             await base.OnDisconnectedAsync(exception);
         }

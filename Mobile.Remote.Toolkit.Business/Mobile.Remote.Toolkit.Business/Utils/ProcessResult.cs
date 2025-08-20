@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Business.Utils
+﻿#nullable disable
+
+namespace Mobile.Remote.Toolkit.Business.Utils
 {
     public class ProcessResult
     {

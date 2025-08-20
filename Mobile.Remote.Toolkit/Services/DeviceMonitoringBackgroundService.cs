@@ -1,12 +1,20 @@
-﻿using Mobile.Remote.Toolkit.Business.Services.Android;
+﻿#nullable disable
+
+using Mobile.Remote.Toolkit.Business.Services.Android;
 
 namespace Mobile.Remote.Toolkit.Api.Services
 {
     public class DeviceMonitoringBackgroundService : BackgroundService
     {
-        private readonly IServiceProvider _serviceProvider;
-        private readonly ILogger<DeviceMonitoringBackgroundService> _logger;
+        private IServiceProvider _serviceProvider;
+        private ILogger<DeviceMonitoringBackgroundService> _logger;
         private bool _isEnabled = false;
+
+        public DeviceMonitoringBackgroundService(IServiceProvider serviceProvider, ILogger<DeviceMonitoringBackgroundService> logger)
+        {
+            _serviceProvider = serviceProvider ?? throw new ArgumentNullException(nameof(serviceProvider));
+            _logger = logger ?? throw new ArgumentNullException(nameof(logger));
+        }
 
         protected override async Task ExecuteAsync(CancellationToken stoppingToken)
         {

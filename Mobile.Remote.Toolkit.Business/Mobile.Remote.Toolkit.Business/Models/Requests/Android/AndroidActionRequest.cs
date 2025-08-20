@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
+﻿#nullable disable
+
+namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
 {
     public class AndroidActionRequest
     {

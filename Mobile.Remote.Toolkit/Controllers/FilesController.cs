@@ -22,7 +22,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         /// <param name="serial">Filtrar por serial de dispositivo</param>
         /// <returns>Lista de archivos</returns>
         [HttpGet("screenshots")]
-        public async Task<ActionResult<List<string>>> GetScreenshots([FromQuery] string serial = null)
+        public async Task<ActionResult<List<string>>> GetScreenshots([FromQuery] string serial)
         {
             var files = await _fileService.GetScreenshotFilesAsync(serial);
             return Ok(files);

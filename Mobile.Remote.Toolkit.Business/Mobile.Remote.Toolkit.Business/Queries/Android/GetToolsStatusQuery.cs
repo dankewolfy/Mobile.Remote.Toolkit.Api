@@ -1,10 +1,12 @@
-﻿using MediatR;
+﻿#nullable disable
+
+using MediatR;
+
 using Microsoft.Extensions.Logging;
 
-using Mobile.Remote.Toolkit.Business.Commands.Android;
-using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 using Mobile.Remote.Toolkit.Business.Queries.Base;
 using Mobile.Remote.Toolkit.Business.Services.Android;
+using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Queries.Android
 {
@@ -13,13 +15,7 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
 
         public class GetToolsStatusQueryHandler : AndroidBaseQueryHandler<GetToolsStatusQuery, AndroidToolsStatusResponse>
         {
-            public GetToolsStatusQueryHandler(
-                IAndroidDeviceService androidDeviceService, 
-                IMediator mediator, 
-                ILogger<GetToolsStatusQueryHandler> logger) 
-                : base(mediator, androidDeviceService)
-            {
-            }
+            public GetToolsStatusQueryHandler(IAndroidDeviceService androidDeviceService, IMediator mediator, ILogger<GetToolsStatusQueryHandler> logger) : base(mediator, androidDeviceService) { }
 
             public async override Task<AndroidToolsStatusResponse> Handle(GetToolsStatusQuery request, CancellationToken cancellationToken)
             {
@@ -47,18 +43,19 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
                 //}
                 //catch (Exception ex)
                 //{
-                //    return Ok(new
+                //return Ok(new
+                //{
+                //    success = false,
+                //    error = ex.Message,
+                //    tools = new
                 //    {
-                //        success = false,
-                //        error = ex.Message,
-                //        tools = new
-                //        {
-                //            adb_available = false,
-                //            scrcpy_available = false
-                //        }
-                //    });
+                //        adb_available = false,
+                //        scrcpy_available = false
+                //    }
+                //});
                 //}
-                return default;
+                _ = await Mediator.Send(request, cancellationToken);
+                return new AndroidToolsStatusResponse { AdbAvailable = false };
             }
         }
     }

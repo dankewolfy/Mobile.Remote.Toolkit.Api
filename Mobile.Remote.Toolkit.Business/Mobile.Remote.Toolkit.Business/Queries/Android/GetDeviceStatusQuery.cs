@@ -1,4 +1,7 @@
-﻿using MediatR;
+﻿#nullable disable
+
+using MediatR;
+
 using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Business.Services.Android;
@@ -18,18 +21,10 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
         /// </summary>
         public class GetDeviceStatusQueryHandler : AndroidBaseQueryHandler<GetDeviceStatusQuery, Dictionary<string, object>>
         {
-            public GetDeviceStatusQueryHandler(
-                IAndroidDeviceService androidDeviceService, 
-                IMediator mediator, 
-                ILogger<GetDeviceStatusQueryHandler> logger) 
-                : base(mediator, androidDeviceService)
-            {
-            }
+            public GetDeviceStatusQueryHandler( IAndroidDeviceService androidDeviceService, IMediator mediator, ILogger<GetDeviceStatusQueryHandler> logger) : base(mediator, androidDeviceService) { }
 
             public override async Task<Dictionary<string, object>> Handle(GetDeviceStatusQuery request, CancellationToken cancellationToken)
-            {
-                return await AndroidService.GetDeviceStatusAsync(request.Serial);
-            }
+                => await AndroidService.GetDeviceStatusAsync(request.Serial);
         }
     }
 }

@@ -1,5 +1,8 @@
-﻿using System.Diagnostics;
+﻿#nullable disable
+
+using System.Diagnostics;
 using System.Runtime.InteropServices;
+
 using Microsoft.Extensions.Logging;
 
 namespace Mobile.Remote.Toolkit.Business.Utils

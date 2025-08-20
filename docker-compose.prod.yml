@@ -1,0 +1,53 @@
+version: "3.8"
+
+services:
+  mobile-remote-toolkit-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      args:
+        BUILD_CONFIGURATION: Release
+    container_name: mobile-remote-toolkit-prod
+    ports:
+      - "80:80"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ASPNETCORE_URLS=http://+80
+      - DOTNET_USE_POLLING_FILE_WATCHER=false
+      - TZ=America/Mexico_City
+    volumes:
+      - ./Tools:/app/Tools:ro
+      - mobile-toolkit-logs:/app/logs
+      - mobile-toolkit-config:/app/config:ro
+    networks:
+      - mobile-toolkit-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: "1.0"
+        reservations:
+          memory: 512M
+          cpus: "0.5"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  mobile-toolkit-logs:
+    driver: local
+  mobile-toolkit-config:
+    driver: local
+
+networks:
+  mobile-toolkit-network:
+    driver: bridge

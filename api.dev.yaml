@@ -1,0 +1,149 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  annotations:
+    field.cattle.io/creatorId: user-mobile-toolkit
+    field.cattle.io/publicEndpoints: '[{"nodeName":"mobile-cluster:m-dev","addresses":["172.21.0.23"],"port":30080,"protocol":"TCP","podName":"mobile-toolkit-api:mobile-remote-toolkit-dev","allNodes":false}]'
+  labels:
+    app: mobile-remote-toolkit-dev
+    cattle.io/creator: norman
+    workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-dev
+  name: mobile-remote-toolkit-dev
+  namespace: mobile-toolkit-api
+spec:
+  progressDeadlineSeconds: 600
+  replicas: 1
+  revisionHistoryLimit: 10
+  selector:
+    matchLabels:
+      workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-dev
+  strategy:
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+    type: RollingUpdate
+  template:
+    metadata:
+      annotations:
+        cattle.io/timestamp: "2025-08-18T00:00:00Z"
+        field.cattle.io/ports: '[[{"containerPort":80,"dnsName":"mobile-remote-toolkit-dev-hostport","hostPort":30080,"kind":"HostPort","name":"80tcp30080","protocol":"TCP","sourcePort":30080}]]'
+      labels:
+        app: mobile-remote-toolkit-dev
+        workload.user.cattle.io/workloadselector: deployment-mobile-api-mobile-remote-toolkit-dev
+    spec:
+      containers:
+        - env:
+            - name: ASPNETCORE_ENVIRONMENT
+              value: Development
+            - name: ASPNETCORE_URLS
+              value: http://+80
+            - name: ASPNETCORE_BASEPATH
+              value: "/mobile-toolkit"
+            - name: ForwardedHeaders_Enabled
+              value: "true"
+            - name: TZ
+              value: America/Mexico_City
+            - name: DOTNET_USE_POLLING_FILE_WATCHER
+              value: "true"
+          image: your-registry.com/mobile-toolkit/mobile-remote-toolkit-api.dev:latest
+          imagePullPolicy: Always
+          livenessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 30
+            periodSeconds: 60
+            successThreshold: 1
+            timeoutSeconds: 10
+          readinessProbe:
+            failureThreshold: 3
+            httpGet:
+              path: /health/ready
+              port: 80
+              scheme: HTTP
+            initialDelaySeconds: 10
+            periodSeconds: 30
+            successThreshold: 1
+            timeoutSeconds: 5
+          name: mobile-remote-toolkit-dev
+          ports:
+            - containerPort: 80
+              name: 80tcp
+              protocol: TCP
+          resources:
+            limits:
+              memory: "512Mi"
+              cpu: "500m"
+            requests:
+              memory: "256Mi"
+              cpu: "250m"
+          securityContext:
+            allowPrivilegeEscalation: false
+            privileged: false
+            procMount: Default
+            readOnlyRootFilesystem: false
+            runAsNonRoot: false
+          stdin: true
+          terminationMessagePath: /dev/termination-log
+          terminationMessagePolicy: File
+          tty: true
+          volumeMounts:
+            - name: android-tools-volume
+              mountPath: /app/Tools
+              readOnly: false
+      volumes:
+        - name: android-tools-volume
+          hostPath:
+            path: /opt/android-tools
+            type: DirectoryOrCreate
+      dnsPolicy: ClusterFirst
+      imagePullSecrets:
+        - name: docker-registry-secret
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      terminationGracePeriodSeconds: 30
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mobile-remote-toolkit-dev-service
+  namespace: mobile-toolkit-api
+spec:
+  type: NodePort
+  selector:
+    app: mobile-remote-toolkit-dev
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      nodePort: 30080
+      protocol: TCP
+
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mobile-remote-toolkit-config
+  namespace: mobile-toolkit-api
+data:
+  appsettings.json: |
+    {
+      "Logging": {
+        "LogLevel": {
+          "Default": "Information",
+          "Microsoft.AspNetCore": "Warning"
+        }
+      },
+      "AllowedHosts": "*",
+      "AndroidTools": {
+        "AdbPath": "/app/Tools/Android/adb/adb",
+        "ScrcpyPath": "/app/Tools/Android/scrcpy/scrcpy",
+        "DefaultTimeout": 30000
+      },
+      "SignalR": {
+        "HubUrl": "/deviceHub"
+      }
+    }

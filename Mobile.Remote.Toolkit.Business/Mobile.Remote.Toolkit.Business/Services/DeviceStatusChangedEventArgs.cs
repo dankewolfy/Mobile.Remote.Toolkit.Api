@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Business.Services
+﻿#nullable disable
+
+namespace Mobile.Remote.Toolkit.Business.Services
 {
     public class DeviceStatusChangedEventArgs : EventArgs
     {

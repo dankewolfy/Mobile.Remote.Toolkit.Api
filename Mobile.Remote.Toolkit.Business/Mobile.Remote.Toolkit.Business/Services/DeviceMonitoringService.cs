@@ -1,4 +1,6 @@
-﻿using System.Collections.Concurrent;
+﻿#nullable disable
+
+using System.Collections.Concurrent;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -23,7 +25,6 @@ namespace Mobile.Remote.Toolkit.Business.Services
         public event EventHandler<DeviceEventArgs> DeviceDisconnected;
         public event EventHandler<DeviceStatusChangedEventArgs> DeviceStatusChanged;
 
-        // Quitar IAndroidDeviceService del constructor
         public DeviceMonitoringService(IServiceProvider serviceProvider, ILogger<DeviceMonitoringService> logger)
         {
             _serviceProvider = serviceProvider;
@@ -36,10 +37,8 @@ namespace Mobile.Remote.Toolkit.Business.Services
 
             _logger.LogInformation("Iniciando monitoreo de dispositivos Android");
 
-            // Obtener estado inicial
             await UpdateDeviceStatusAsync();
 
-            // Configurar timer para monitoreo cada 3 segundos
             _monitoringTimer = new Timer(async _ => await MonitorDevicesAsync(),
                 null, TimeSpan.Zero, TimeSpan.FromSeconds(3));
 
@@ -52,8 +51,11 @@ namespace Mobile.Remote.Toolkit.Business.Services
 
             _logger.LogInformation("Deteniendo monitoreo de dispositivos Android");
 
-            _monitoringTimer?.Dispose();
-            _monitoringTimer = null;
+            await Task.Run(() =>
+            {
+                _monitoringTimer?.Dispose();
+                _monitoringTimer = null;
+            });
 
             IsMonitoring = false;
         }
