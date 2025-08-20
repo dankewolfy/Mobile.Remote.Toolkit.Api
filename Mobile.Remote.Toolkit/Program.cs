@@ -49,6 +49,8 @@ builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Busine
 
 // MediatR
 builder.Services.AddMediatR(typeof(Program).Assembly);
+builder.Services.AddMediatR(typeof(GetAndroidDevicesQuery).Assembly);
+builder.Services.AddMediatR(typeof(ExecuteAdbCommandHandler).Assembly);
 
 // SignalR
 builder.Services.AddSignalR();
