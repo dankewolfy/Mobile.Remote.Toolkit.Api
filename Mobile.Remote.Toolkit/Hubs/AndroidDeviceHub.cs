@@ -25,7 +25,7 @@ namespace Mobile.Remote.Toolkit.Api.Hubs
 
         public async Task GetDeviceStatus(string serial)
         {
-            var status = await _androidService.GetDeviceStatusAsync(serial);
+            var status = await _androidService.GetMirrorStatusAsync(serial);
             await Clients.Caller.SendAsync("DeviceStatus", status);
         }
 

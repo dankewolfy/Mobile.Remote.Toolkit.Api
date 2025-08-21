@@ -24,7 +24,7 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
             public GetDeviceStatusQueryHandler( IAndroidDeviceService androidDeviceService, IMediator mediator, ILogger<GetDeviceStatusQueryHandler> logger) : base(mediator, androidDeviceService) { }
 
             public override async Task<Dictionary<string, object>> Handle(GetDeviceStatusQuery request, CancellationToken cancellationToken)
-                => await AndroidService.GetDeviceStatusAsync(request.Serial);
+                => await AndroidService.GetMirrorStatusAsync(request.Serial);
         }
     }
 }

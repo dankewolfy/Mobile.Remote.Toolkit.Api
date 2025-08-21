@@ -1,7 +1,6 @@
 ﻿#nullable disable
 
 using MediatR;
-
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Services.Android;
 

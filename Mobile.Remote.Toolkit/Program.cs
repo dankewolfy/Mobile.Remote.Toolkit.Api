@@ -35,7 +35,13 @@ builder.Services.AddCors(options =>
 });
 
 // Registrar servicios para Android
-builder.Services.AddScoped<IAndroidDeviceService, AndroidDeviceService>();
+
+// Register all Android services with a single extension method
+builder.Services.AddAndroidDeviceServices(options =>
+{
+    options.DefaultMirrorOptions = new Mobile.Remote.Toolkit.Business.Models.Android.MirrorOptionsRequest { MaxSize = 1080 };
+    options.ScreenshotFolder = "Screenshots";
+});
 
 builder.Services.AddScoped<IProcessHelper>(provider =>
 {

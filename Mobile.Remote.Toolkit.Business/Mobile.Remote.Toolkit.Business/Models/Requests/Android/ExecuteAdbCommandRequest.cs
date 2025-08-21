@@ -1,9 +1,9 @@
 ﻿#nullable disable
 
-using System.Runtime.Serialization;
-
-using Mobile.Remote.Toolkit.Business.Models.Responses;
+using Mobile.Remote.Toolkit.Business.Models.Android;
 using Mobile.Remote.Toolkit.Business.Models.Requests.Base;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
+using System.Runtime.Serialization;
 
 namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
 {
@@ -11,7 +11,7 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
     /// 
     /// </summary>
     [DataContract]
-    public sealed record ExecuteAdbCommandRequest : BaseRequest<ActionResponse>
+    public sealed record ExecuteAdbCommandRequest : BaseRequest<CommandResultResponse>
     {
         /// <summary>
         /// 

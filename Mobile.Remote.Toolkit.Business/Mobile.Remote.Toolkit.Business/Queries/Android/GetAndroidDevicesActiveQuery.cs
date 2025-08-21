@@ -14,7 +14,7 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
 
             public override async Task<List<AndroidDeviceResponse>> Handle(GetAndroidDevicesActiveQuery request, CancellationToken cancellationToken)
             {
-                var devices = await AndroidService.GetConnectedDevicesAsync();
+                var devices = await AndroidService.GetConnectedDeviceSerialsAsync();
 
                 return [.. devices.Where(d => d.Active)];
             }

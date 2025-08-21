@@ -25,7 +25,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         [HttpGet("summary")]
         public async Task<ActionResult<object>> GetSystemStats()
         {
-            var devices = await _androidService.GetConnectedDevicesAsync();
+            var devices = await _androidService.GetConnectedDeviceSerialsAsync();
             var activeDevices = devices.Where(d => d.Active).ToList();
 
             return Ok(new
@@ -51,13 +51,13 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         [HttpGet("devices")]
         public async Task<ActionResult<List<object>>> GetDeviceStats()
         {
-            var devices = await _androidService.GetConnectedDevicesAsync();
+            var devices = await _androidService.GetConnectedDeviceSerialsAsync();
             var deviceStats = new List<object>();
 
             foreach (var device in devices)
             {
                 var screenshots = await _fileService.GetScreenshotFilesAsync(device.Serial);
-                var status = await _androidService.GetDeviceStatusAsync(device.Serial);
+                var status = await _androidService.GetMirrorStatusAsync(device.Serial);
 
                 deviceStats.Add(new
                 {

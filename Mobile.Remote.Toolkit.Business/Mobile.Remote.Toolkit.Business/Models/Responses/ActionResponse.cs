@@ -34,6 +34,10 @@ namespace Mobile.Remote.Toolkit.Business.Models.Responses
         [DataMember]
         public Dictionary<string, object> Data { get; set; }
 
-        public ActionResponse() { }
+        public ActionResponse(bool success, string message)
+        {
+            Success = success;
+            Message = message;
+        }
     }
 }

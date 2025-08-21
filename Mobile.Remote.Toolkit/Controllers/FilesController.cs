@@ -57,11 +57,10 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         {
             var result = await _fileService.DeleteFileAsync(filename);
 
-            return Ok(new ActionResponse
-            {
-                Success = result,
-                Message = result ? "Archivo eliminado correctamente" : "Error eliminando archivo"
-            });
+            return Ok(new ActionResponse(
+                result,
+                result ? "Archivo eliminado correctamente" : "Error eliminando archivo"
+            ));
         }
 
         /// <summary>

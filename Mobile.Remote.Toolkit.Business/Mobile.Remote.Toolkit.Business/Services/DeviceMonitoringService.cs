@@ -81,7 +81,7 @@ namespace Mobile.Remote.Toolkit.Business.Services
                 var androidService = scope.ServiceProvider.GetRequiredService<IAndroidDeviceService>();
                 var notificationService = scope.ServiceProvider.GetRequiredService<INotificationService>();
 
-                var currentDevices = await androidService.GetConnectedDevicesAsync();
+                var currentDevices = await androidService.GetConnectedDeviceSerialsAsync();
                 var currentDeviceDict = currentDevices.ToDictionary(d => d.Serial, d => d);
 
                 // Detectar dispositivos conectados
@@ -103,7 +103,7 @@ namespace Mobile.Remote.Toolkit.Business.Services
                         {
                             _lastKnownStatus[device.Serial] = device.Active;
 
-                            var status = await androidService.GetDeviceStatusAsync(device.Serial);
+                            var status = await androidService.GetMirrorStatusAsync(device.Serial);
                             DeviceStatusChanged?.Invoke(this, new DeviceStatusChangedEventArgs
                             {
                                 Serial = device.Serial,

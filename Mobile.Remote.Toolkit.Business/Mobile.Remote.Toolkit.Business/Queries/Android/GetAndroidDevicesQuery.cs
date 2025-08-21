@@ -13,7 +13,7 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
             public GetAndroidDevicesQueryHandler(IAndroidDeviceService androidDeviceService, IMediator mediator) : base(mediator, androidDeviceService) { }
 
             public override async Task<List<AndroidDeviceResponse>> Handle(GetAndroidDevicesQuery request, CancellationToken cancellationToken)
-                => await AndroidService.GetConnectedDevicesAsync();
+                => await AndroidService.GetConnectedDeviceSerialsAsync();
         }
     }
 }

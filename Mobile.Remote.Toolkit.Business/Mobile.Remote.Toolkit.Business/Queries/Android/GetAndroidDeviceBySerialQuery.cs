@@ -21,7 +21,7 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
 
             public override async Task<AndroidDeviceResponse> Handle(GetAndroidDeviceBySerialQuery request, CancellationToken cancellationToken)
             {
-                var devices = await AndroidService.GetConnectedDevicesAsync();
+                var devices = await AndroidService.GetConnectedDeviceSerialsAsync();
                 var device = devices.FirstOrDefault(d => d.Serial == request.Serial);
 
                 return devices is null ? null : device;

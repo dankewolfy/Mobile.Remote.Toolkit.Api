@@ -27,7 +27,7 @@ namespace Mobile.Remote.Toolkit.Api.Services
                         using var scope = _serviceProvider.CreateScope();
                         var deviceService = scope.ServiceProvider.GetRequiredService<IAndroidDeviceService>();
 
-                        var devices = await deviceService.GetConnectedDevicesAsync();
+                        var devices = await deviceService.GetConnectedDeviceSerialsAsync();
                     }
                     catch (Exception ex)
                     {
