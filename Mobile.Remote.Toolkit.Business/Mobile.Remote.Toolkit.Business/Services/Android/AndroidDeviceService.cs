@@ -130,57 +130,70 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
         public async Task<ActionResponse> StartMirrorAsync(string serial, Dictionary<string, object> options = null)
         {
-            try
+            return await Task.Run(() =>
             {
-                // Construir argumentos de scrcpy
-                var arguments = $"-s {serial}";
-
-                if (options != null)
+                try
                 {
-                    if (options.ContainsKey("stayAwake") && (bool)options["stayAwake"])
-                        arguments += " --stay-awake";
+                    // Construir argumentos de scrcpy
+                    var arguments = $"-s {serial}";
 
-                    if (options.ContainsKey("noAudio") && (bool)options["noAudio"])
-                        arguments += " --no-audio";
-
-                    if (options.ContainsKey("showTouches") && (bool)options["showTouches"])
-                        arguments += " --show-touches";
-
-                    if (options.ContainsKey("turnScreenOff") && (bool)options["turnScreenOff"])
-                        arguments += " --turn-screen-off";
-                }
-                else
-                {
-                    arguments += " --max-size=1920 --bit-rate=8M --max-fps=30 --stay-awake";
-                }
-
-                _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
-
-                var result = await _processHelper.ExecuteCommandAsync("scrcpy", arguments, 15);
-
-                return new ActionResponse
-                {
-                    Success = result.Success,
-                    Message = result.Success ? "Mirror iniciado correctamente" : "Error iniciando mirror",
-                    Error = result.Success ? null : result.Error,
-                    Data = new Dictionary<string, object>
+                    if (options != null)
                     {
-                        ["serial"] = serial,
-                        ["arguments"] = arguments,
-                        ["command_output"] = result.Output,
-                        ["command_error"] = result.Error
+                        if (options.ContainsKey("stayAwake") && (bool)options["stayAwake"])
+                            arguments += " --stay-awake";
+
+                        if (options.ContainsKey("noAudio") && (bool)options["noAudio"])
+                            arguments += " --no-audio";
+
+                        if (options.ContainsKey("showTouches") && (bool)options["showTouches"])
+                            arguments += " --show-touches";
+
+                        if (options.ContainsKey("turnScreenOff") && (bool)options["turnScreenOff"])
+                            arguments += " --turn-screen-off";
                     }
-                };
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Excepción iniciando mirror para {serial}");
-                return new ActionResponse
+                    else
+                    {
+                        arguments += " --max-size=1920 --bit-rate=8M --max-fps=30 --stay-awake";
+                    }
+
+                    _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
+
+                    // Lanzar scrcpy en segundo plano
+                    var startInfo = new ProcessStartInfo
+                    {
+                        FileName = "scrcpy",
+                        Arguments = arguments,
+                        UseShellExecute = false,
+                        RedirectStandardOutput = true,
+                        RedirectStandardError = true,
+                        CreateNoWindow = true
+                    };
+                    var process = new Process { StartInfo = startInfo };
+                    process.Start();
+                    _activeProcesses[serial] = process;
+
+                    return new ActionResponse
+                    {
+                        Success = true,
+                        Message = "Mirror iniciado correctamente (proceso en segundo plano)",
+                        Data = new Dictionary<string, object>
+                        {
+                            ["serial"] = serial,
+                            ["arguments"] = arguments,
+                            ["process_id"] = process.Id
+                        }
+                    };
+                }
+                catch (Exception ex)
                 {
-                    Success = false,
-                    Error = $"Error iniciando mirror: {ex.Message}"
-                };
-            }
+                    _logger.LogError(ex, $"Excepción iniciando mirror para {serial}");
+                    return new ActionResponse
+                    {
+                        Success = false,
+                        Error = $"Error iniciando mirror: {ex.Message}"
+                    };
+                }
+            });
         }
 
         public async Task<ActionResponse> StopMirrorAsync(string serial)

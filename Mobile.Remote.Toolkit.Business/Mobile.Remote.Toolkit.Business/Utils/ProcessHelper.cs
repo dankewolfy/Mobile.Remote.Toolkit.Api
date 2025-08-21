@@ -20,21 +20,21 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             
             var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _toolsPath = Path.Combine(baseDirectory, "Tools");
-            
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "adb.exe");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "scrcpy.exe");
+                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "win", "adb.exe");
+                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "win", "scrcpy.exe");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "adb");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "scrcpy");
+                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "linux", "adb");
+                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "linux", "scrcpy");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "adb");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "scrcpy");
+                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "mac", "adb");
+                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "mac", "scrcpy");
             }
 
             _logger.LogInformation($"Base Directory: {baseDirectory}");
@@ -101,26 +101,34 @@ namespace Mobile.Remote.Toolkit.Business.Utils
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
 
-                var completed = await Task.Run(() => process.WaitForExit(timeoutMs));
-
-                if (!completed)
+                bool completed = true;
+                if (timeoutSeconds > 0)
                 {
-                    _logger.LogWarning($"Proceso excedió timeout de {timeoutSeconds}s: {actualFileName}");
-                    try
+                    var timeoutMsLocal = timeoutSeconds * 1000;
+                    completed = await Task.Run(() => process.WaitForExit(timeoutMsLocal));
+                    if (!completed)
                     {
-                        process.Kill();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error terminando proceso por timeout");
-                    }
+                        _logger.LogWarning($"Proceso excedió timeout de {timeoutSeconds}s: {actualFileName}");
+                        try
+                        {
+                            process.Kill();
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error terminando proceso por timeout");
+                        }
 
-                    return new ProcessResult
-                    {
-                        Success = false,
-                        Output = string.Empty,
-                        Error = $"Timeout después de {timeoutSeconds} segundos"
-                    };
+                        return new ProcessResult
+                        {
+                            Success = false,
+                            Output = string.Empty,
+                            Error = $"Timeout después de {timeoutSeconds} segundos"
+                        };
+                    }
+                }
+                else
+                {
+                    await Task.Run(() => process.WaitForExit());
                 }
 
                 var output = string.Join("\n", outputBuffer);

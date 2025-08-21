@@ -13,6 +13,8 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
+// Registrar HttpClient y el servicio para el agente ADB/Scrcpy
+
 // Configurar CORS para Vue
 builder.Services.AddCors(options =>
 {

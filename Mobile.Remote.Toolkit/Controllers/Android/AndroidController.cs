@@ -45,6 +45,48 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         public async Task<ActionResult<List<AndroidDeviceResponse>>> GetActiveDevices() => Ok(await Mediator.Send(new GetAndroidDevicesActiveQuery()));
 
         /// <summary>
+        /// Lista los procesos scrcpy activos
+        /// </summary>
+        [HttpGet("processes")]
+        public async Task<IActionResult> GetScrcpyProcesses([FromServices] Mobile.Remote.Toolkit.Business.Utils.IProcessHelper processHelper)
+        {
+            var processIds = await processHelper.GetProcessIdsByNameAsync("scrcpy");
+            var processes = processIds.Select(pid => {
+                try
+                {
+                    var proc = System.Diagnostics.Process.GetProcessById(pid);
+                    return new {
+                        pid,
+                        name = proc.ProcessName,
+                        startTime = proc.StartTime,
+                        mainWindowTitle = proc.MainWindowTitle
+                    };
+                }
+                catch { return null; }
+            }).Where(p => p != null).ToList();
+            return Ok(processes);
+        }
+
+        /// <summary>
+        /// Elimina procesos scrcpy por PID (solo si están activos)
+        /// </summary>
+        [HttpPost("processes/kill")]
+        public async Task<IActionResult> KillScrcpyProcesses([FromBody] List<int> pids, [FromServices] Mobile.Remote.Toolkit.Business.Utils.IProcessHelper processHelper)
+        {
+            var activePids = await processHelper.GetProcessIdsByNameAsync("scrcpy");
+            var killed = new List<int>();
+            foreach (var pid in pids)
+            {
+                if (activePids.Contains(pid))
+                {
+                    var ok = await processHelper.KillProcessAsync(pid);
+                    if (ok) killed.Add(pid);
+                }
+            }
+            return Ok(new { killed });
+        }
+
+        /// <summary>
         /// Inicia el mirror para un dispositivo Android específico
         /// </summary>
         /// <param name="serial">Serial del dispositivo</param>

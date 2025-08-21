@@ -67,6 +67,7 @@ COPY --from=build /src/Tools ./Tools
 # Make sure Android tools have execute permissions
 RUN chmod +x /app/Tools/Android/adb/* || true
 RUN chmod +x /app/Tools/Android/scrcpy/* || true
+RUN chmod +x /app/Tools/Android/adb/linux/adb || true
 
 # Add health check for development
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
