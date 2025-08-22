@@ -1,5 +1,4 @@
 using MediatR;
-using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Api.Hubs;
 using Mobile.Remote.Toolkit.Business.Utils;
@@ -10,14 +9,9 @@ using Mobile.Remote.Toolkit.Business.Services.Android;
 
 var builder = WebApplication.CreateBuilder(args);
 
-builder.Logging.SetMinimumLevel(LogLevel.Debug);
-builder.Logging.AddConsole();
-
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
-
-// Registrar HttpClient y el servicio para el agente ADB/Scrcpy
 
 // Configurar CORS para Vue
 builder.Services.AddCors(options =>
@@ -53,12 +47,9 @@ builder.Services.AddScoped<IProcessHelper>(provider =>
     var executorLogger = provider.GetRequiredService<ILogger<ProcessCommandExecutor>>();
     return new ProcessHelper(logger, executorLogger);
 });
-builder.Services.AddScoped<IFileService, FileService>();
 
 builder.Services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
-builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Business.Services.LogNotificationService>();
-
-//builder.Services.AddHostedService<DeviceMonitoringBackgroundService>();
+builder.Services.AddSingleton<INotificationService, LogNotificationService>();
 
 // MediatR
 builder.Services.AddMediatR(typeof(Program).Assembly);
@@ -69,30 +60,6 @@ builder.Services.AddMediatR(typeof(ExecuteAdbCommandHandler).Assembly);
 builder.Services.AddSignalR();
 
 var app = builder.Build();
-
-// Verificar que las herramientas estén disponibles
-//using (var scope = app.Services.CreateScope())
-//{
-//    var processHelper = scope.ServiceProvider.GetRequiredService<IProcessHelper>();
-//    var logger = scope.ServiceProvider.GetRequiredService<ILogger<Program>>();
-
-//    try
-//    {
-//        var adbResult = await processHelper.ExecuteCommandAsync("adb", "version");
-//        if (adbResult.Success)
-//        {
-//            logger.LogInformation($"ADB disponible: {adbResult.Output.Split('\n')[0]}");
-//        }
-//        else
-//        {
-//            logger.LogWarning("ADB no está disponible");
-//        }
-//    }
-//    catch (Exception ex)
-//    {
-//        logger.LogError(ex, "Error verificando herramientas");
-//    }
-//}
 
 if (app.Environment.IsDevelopment())
 {

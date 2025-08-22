@@ -43,10 +43,7 @@ namespace Mobile.Remote.Toolkit.Business.Utils
                 _scrcpyPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Scrcpy.ToString(), Patform.Mac.ToString(), CommandTool.Scrcpy.ToString());
             }
 
-            _logger.LogInformation($"Base Directory: {baseDirectory}");
-            _logger.LogInformation($"Tools Path: {_toolsPath}");
-            _logger.LogInformation($"ADB Path: {_adbPath}");
-            _logger.LogInformation($"Scrcpy Path: {_scrcpyPath}");
+            // Eliminado log de información de paths para evitar spam en consola
         }
 
         public async Task<ProcessResultResponse> ExecuteCommandAsync(CommandTool tool, string arguments, int timeoutSeconds = 30)
