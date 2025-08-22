@@ -8,16 +8,16 @@ using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
 namespace Mobile.Remote.Toolkit.Business.Commands.Android
 {
     /// <summary>
-    /// Comando para ejecutar comandos ADB personalizados en dispositivos Android
+    /// Comando para iniciar mirror de dispositivo Android
     /// </summary>
-    public sealed class ExecuteAdbCommandHandler : AndroidBaseCommandHandler<ExecuteAdbRequest, ProcessResultResponse>
+    public sealed class StartMirrorCommandHandler : AndroidBaseCommandHandler<StartMirrorRequest, ActionResponse>
     {
         /// <summary>
         /// 
         /// </summary>
         /// <param name="androidDeviceService"></param>
         /// <param name="logger"></param>
-        public ExecuteAdbCommandHandler(IAndroidDeviceService androidDeviceService, ILogger<ExecuteAdbCommandHandler> logger) : base(androidDeviceService, logger) { }
+        public StartMirrorCommandHandler(IAndroidDeviceService androidDeviceService, ILogger<StartMirrorCommandHandler> logger) : base(androidDeviceService, logger) { }
 
         /// <summary>
         /// 
@@ -25,7 +25,7 @@ namespace Mobile.Remote.Toolkit.Business.Commands.Android
         /// <param name="request"></param>
         /// <param name="cancellationToken"></param>
         /// <returns></returns>
-        public override async Task<ProcessResultResponse> Handle(ExecuteAdbRequest request, CancellationToken cancellationToken)
-            => await AndroidDeviceService.ExecuteAdbCommandAsync(request.Serial, request.Command);
+        public override async Task<ActionResponse> Handle(StartMirrorRequest request, CancellationToken cancellationToken)
+            => await AndroidDeviceService.StartMirrorAsync(request.Serial, request.Options);
     }
 }

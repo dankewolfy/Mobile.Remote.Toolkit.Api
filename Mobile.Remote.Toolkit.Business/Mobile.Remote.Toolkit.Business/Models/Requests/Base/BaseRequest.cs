@@ -6,7 +6,6 @@ using System.Runtime.Serialization;
 
 namespace Mobile.Remote.Toolkit.Business.Models.Requests.Base
 {
-
     /// <summary>
     /// Clase base para requests sin respuesta específica
     /// </summary>
@@ -18,5 +17,12 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Base
     /// </summary>
     /// <typeparam name="TResponse">Tipo de respuesta que devuelve el request</typeparam>
     [DataContract]
-    public abstract record BaseRequest<TResponse> : IRequest<TResponse> { }
+    public abstract record BaseRequest<TResponse> : IRequest<TResponse>
+    {
+        /// <summary>
+        /// Clave serial del request
+        /// </summary>
+        [DataMember]
+        public string Serial { get; set; }
+    }
 }

@@ -11,14 +11,8 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
     /// 
     /// </summary>
     [DataContract]
-    public sealed record ExecuteScrcpyCommandRequest : BaseRequest<ProcessResultResponse>
+    public sealed record ExecuteAdbRequest : BaseRequest<ProcessResultResponse>
     {
-        /// <summary>
-        /// 
-        /// </summary>
-        [DataMember]
-        public string Serial { get; set; }
-
         /// <summary>
         /// 
         /// </summary>

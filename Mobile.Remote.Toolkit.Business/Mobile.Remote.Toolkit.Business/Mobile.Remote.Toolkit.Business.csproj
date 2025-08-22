@@ -8,6 +8,7 @@
 
   <ItemGroup>
     <Folder Include="Commands\iOS\" />
+    <Folder Include="Handlers\" />
     <Folder Include="Models\Requests\iOS\" />
     <Folder Include="Models\Responses\iOS\" />
     <Folder Include="Queries\iOS\" />

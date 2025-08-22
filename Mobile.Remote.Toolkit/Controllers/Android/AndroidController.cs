@@ -1,11 +1,14 @@
-﻿using Microsoft.AspNetCore.Mvc;
-
+﻿using MediatR;
+using Microsoft.AspNetCore.Mvc;
 using Mobile.Remote.Toolkit.Api.Controllers.Base;
-using Mobile.Remote.Toolkit.Business.Queries.Android;
 using Mobile.Remote.Toolkit.Business.Commands.Android;
-using Mobile.Remote.Toolkit.Business.Models.Responses;
+using Mobile.Remote.Toolkit.Business.Commands.Process;
+using Mobile.Remote.Toolkit.Business.Models;
 using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
+using Mobile.Remote.Toolkit.Business.Models.Requests.Process;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Business.Queries.Android;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers.Android
 {
@@ -45,46 +48,16 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         public async Task<ActionResult<List<AndroidDeviceResponse>>> GetActiveDevices() => Ok(await Mediator.Send(new GetAndroidDevicesActiveQuery()));
 
         /// <summary>
-        /// Lista los procesos scrcpy activos
+        /// Lista los procesos activos de una herramienta
         /// </summary>
-        [HttpGet("processes")]
-        public async Task<IActionResult> GetScrcpyProcesses([FromServices] Mobile.Remote.Toolkit.Business.Utils.IProcessHelper processHelper)
-        {
-            var processIds = await processHelper.GetProcessIdsByNameAsync("scrcpy");
-            var processes = processIds.Select(pid => {
-                try
-                {
-                    var proc = System.Diagnostics.Process.GetProcessById(pid);
-                    return new {
-                        pid,
-                        name = proc.ProcessName,
-                        startTime = proc.StartTime,
-                        mainWindowTitle = proc.MainWindowTitle
-                    };
-                }
-                catch { return null; }
-            }).Where(p => p != null).ToList();
-            return Ok(processes);
-        }
+        [HttpGet("processes/{tool}")]
+        public async Task<IActionResult> GetProcesses([FromRoute] CommandTool tool, [FromQuery] Patform platform, [FromServices] IMediator mediator) => Ok(await mediator.Send(new GetProcessesRequest(tool, platform)));
 
         /// <summary>
-        /// Elimina procesos scrcpy por PID (solo si están activos)
+        /// Elimina procesos por PID y herramienta
         /// </summary>
-        [HttpPost("processes/kill")]
-        public async Task<IActionResult> KillScrcpyProcesses([FromBody] List<int> pids, [FromServices] Mobile.Remote.Toolkit.Business.Utils.IProcessHelper processHelper)
-        {
-            var activePids = await processHelper.GetProcessIdsByNameAsync("scrcpy");
-            var killed = new List<int>();
-            foreach (var pid in pids)
-            {
-                if (activePids.Contains(pid))
-                {
-                    var ok = await processHelper.KillProcessAsync(pid);
-                    if (ok) killed.Add(pid);
-                }
-            }
-            return Ok(new { killed });
-        }
+        [HttpPost("processes/{tool}/kill")]
+        public async Task<IActionResult> KillProcesses([FromRoute] CommandTool tool, [FromQuery] Patform platform, [FromBody] List<int> pids, [FromServices] IMediator mediator) => Ok(await mediator.Send(new KillProcessRequest(tool, platform, pids)));
 
         /// <summary>
         /// Inicia el mirror para un dispositivo Android específico
@@ -93,7 +66,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="request">Opciones del mirror</param>
         /// <returns>Resultado de la acción</returns>
         [HttpPost("devices/{serial}/mirror/start")]
-        public async Task<ActionResult<ActionResponse>> StartMirror([FromRoute] string serial, [FromBody] StartMirrorRequest request) => Ok(await Mediator.Send(new StartMirrorCommand { Serial = serial, Options = request?.Options ?? [] }));
+        public async Task<ActionResult<ActionResponse>> StartMirror([FromRoute] string serial, [FromBody] StartMirrorRequest request) => Ok(await Mediator.Send(new StartMirrorRequest { Serial = serial, Options = request?.Options ?? [] }));
 
         /// <summary>
         /// Detiene el mirror para un dispositivo Android específico
@@ -101,7 +74,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="serial">Serial del dispositivo</param>
         /// <returns>Resultado de la acción</returns>
         [HttpPost("devices/{serial}/mirror/stop")]
-        public async Task<ActionResult<ActionResponse>> StopMirror([FromRoute] string serial) => Ok(await Mediator.Send(new StopMirrorCommand { Serial = serial }));
+        public async Task<ActionResult<ActionResponse>> StopMirror([FromRoute] string serial) => Ok(await Mediator.Send(new StopMirrorRequest { Serial = serial }));
 
         /// <summary>
         /// Toma un screenshot del dispositivo Android
@@ -113,7 +86,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         [Produces("image/png")]
         public async Task<IActionResult> TakeScreenshot([FromRoute] string serial, [FromBody] ScreenshotRequest request)
         {
-            var response = await Mediator.Send(new TakeScreenshotCommand { Serial = serial, Filename = request.Filename });
+            var response = await Mediator.Send(new ScreenshotRequest { Serial = serial, Filename = request.Filename });
 
             if (response.Bytes == null || response.Bytes.Length == 0)
                 return BadRequest("No se pudo tomar la captura");
@@ -128,7 +101,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="request">Comando a ejecutar</param>
         /// <returns>Resultado del comando</returns>
         [HttpPost("devices/{serial}/adb")]
-        public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbCommandRequest request) => Ok(await Mediator.Send(request with { Serial = serial }));
+        public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbRequest request) => Ok(await Mediator.Send(request with { Serial = serial }));
 
         /// <summary>
         /// 
@@ -137,7 +110,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="request"></param>
         /// <returns></returns>
         [HttpPost("devices/{serial}/action")]
-        public async Task<IActionResult> ExecuteAction(string serial, [FromBody] AndroidActionRequest request) => Ok(await Mediator.Send(new ExecuteAndroidActionCommand { Serial = serial, Action = request.Action, Payload = request.Payload }));
+        public async Task<IActionResult> ExecuteAction(string serial, [FromBody] AndroidActionRequest request) => Ok(await Mediator.Send(new ExecuteAndroidActionRequest { Serial = serial, Action = request.Action, Payload = request.Payload }));
 
         /// <summary>
         /// Verifica el estado de las herramientas necesarias

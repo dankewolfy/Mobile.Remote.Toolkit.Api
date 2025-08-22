@@ -1,30 +1,20 @@
-﻿#nullable disable
+﻿using Microsoft.Extensions.Logging;
 
-using MediatR;
+using Mobile.Remote.Toolkit.Business.Commands.Base;
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Services.Android;
+using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Commands.Android
 {
     /// <summary>
     /// Comando para tomar screenshot de dispositivo Android
     /// </summary>
-    public sealed class TakeScreenshotCommand : IRequest<ScreenshotResponse>
+    public sealed class TakeScreenshotCommand : AndroidBaseCommandHandler<ScreenshotRequest, ScreenshotResponse>
     {
-        public string Serial { get; set; }
-        public string Filename { get; set; }
+        public TakeScreenshotCommand(IAndroidDeviceService androidDeviceService, ILogger<TakeScreenshotCommand> logger) : base(androidDeviceService, logger) { }
 
-        public class TakeScreenshotCommandHandler : IRequestHandler<TakeScreenshotCommand, ScreenshotResponse>
-        {
-            private readonly IAndroidDeviceService _androidService;
-
-            public TakeScreenshotCommandHandler(IAndroidDeviceService androidService)
-            {
-                _androidService = androidService;
-            }
-
-            public async Task<ScreenshotResponse> Handle(TakeScreenshotCommand request, CancellationToken cancellationToken)
-                => await _androidService.TakeScreenshotAsync(request.Serial, request.Filename);
-        }
+        public override async Task<ScreenshotResponse> Handle(ScreenshotRequest request, CancellationToken cancellationToken)
+            => await AndroidDeviceService.TakeScreenshotAsync(request.Serial, request.Filename);
     }
 }

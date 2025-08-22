@@ -1,12 +1,15 @@
 ﻿#nullable disable
 
+using System.Runtime.Serialization;
+
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Models.Requests.Base;
 
 namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
 {
-    public sealed record ScreenshotRequest : BaseRequest<ScreenshotResponse>
-    {
-        public string Filename { get; set; }
-    }
+    /// <summary>
+    /// 
+    /// </summary>
+    [DataContract]
+    public sealed record StopMirrorRequest : BaseRequest<ActionResponse> { }
 }

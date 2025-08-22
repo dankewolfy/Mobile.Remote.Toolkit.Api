@@ -153,7 +153,7 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             catch (Exception ex)
             {
                 _logger.LogError(ex, $"Error obteniendo IDs de procesos: {processName}");
-                return new List<int>();
+                return [];
             }
         }
 

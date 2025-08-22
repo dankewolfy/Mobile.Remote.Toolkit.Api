@@ -1,5 +1,3 @@
-using Mobile.Remote.Toolkit.Business.Models.Android;
-using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android

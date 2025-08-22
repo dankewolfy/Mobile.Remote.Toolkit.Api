@@ -5,8 +5,9 @@ using Mobile.Remote.Toolkit.Business.Models.Requests.Base;
 
 namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
 {
-    public sealed record ScreenshotRequest : BaseRequest<ScreenshotResponse>
+    public sealed record ExecuteAndroidActionRequest : BaseRequest<ActionResponse>
     {
-        public string Filename { get; set; }
+        public string Action { get; set; }
+        public Dictionary<string, object> Payload { get; set; }
     }
 }

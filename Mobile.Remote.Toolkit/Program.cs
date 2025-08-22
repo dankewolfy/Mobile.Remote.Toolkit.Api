@@ -1,4 +1,5 @@
 using MediatR;
+using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Api.Hubs;
 using Mobile.Remote.Toolkit.Business.Utils;
@@ -8,6 +9,9 @@ using Mobile.Remote.Toolkit.Business.Commands.Android;
 using Mobile.Remote.Toolkit.Business.Services.Android;
 
 var builder = WebApplication.CreateBuilder(args);
+
+builder.Logging.SetMinimumLevel(LogLevel.Debug);
+builder.Logging.AddConsole();
 
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
