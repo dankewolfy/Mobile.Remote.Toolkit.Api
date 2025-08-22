@@ -9,5 +9,6 @@ namespace Mobile.Remote.Toolkit.Business.Utils
         Task<bool> IsProcessRunningAsync(string processName);
         Task<List<int>> GetProcessIdsByNameAsync(string processName);
         Task<bool> KillProcessAsync(int processId);
+        Task<byte[]> ExecuteCommandBinaryAsync(CommandTool tool, string args, int timeoutSeconds = 30);
     }
 }

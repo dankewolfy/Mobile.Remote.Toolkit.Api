@@ -73,6 +73,33 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             return await _executor.ExecuteAsync(actualFileName, arguments, timeoutSeconds);
         }
 
+        public async Task<byte[]> ExecuteCommandBinaryAsync(CommandTool tool, string arguments, int timeoutSeconds = 30)
+        {
+            string actualFileName = tool switch
+            {
+                CommandTool.Adb => _adbPath,
+                CommandTool.Scrcpy => _scrcpyPath,
+                _ => throw new ArgumentOutOfRangeException(nameof(tool), tool, null)
+            };
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = actualFileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                CreateNoWindow = true
+            };
+
+            using var process = new Process { StartInfo = startInfo };
+            using var ms = new MemoryStream();
+            process.Start();
+            await process.StandardOutput.BaseStream.CopyToAsync(ms);
+            process.WaitForExit(timeoutSeconds * 1000);
+            return ms.ToArray();
+        }
+
         public async Task<bool> IsProcessRunningAsync(string processName)
         {
             try

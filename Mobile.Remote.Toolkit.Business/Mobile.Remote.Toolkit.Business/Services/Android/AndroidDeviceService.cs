@@ -40,7 +40,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         public Task<Dictionary<string, object>> GetMirrorStatusAsync(string serial)
             => _mirrorService.GetMirrorStatusAsync(serial);
 
-        public Task<ActionResponse> TakeScreenshotAsync(string serial, string filename)
+        public Task<ScreenshotResponse> TakeScreenshotAsync(string serial, string filename)
             => _screenshotService.TakeScreenshotAsync(serial, filename);
 
         public async Task<ProcessResultResponse> ExecuteAdbCommandAsync(string serial, string command)

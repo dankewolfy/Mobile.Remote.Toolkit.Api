@@ -2,8 +2,8 @@
 
 using Mobile.Remote.Toolkit.Api.Controllers.Base;
 using Mobile.Remote.Toolkit.Business.Queries.Android;
-using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Commands.Android;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
 using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
 using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 
@@ -110,7 +110,16 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         /// <param name="request">Opciones del screenshot</param>
         /// <returns>Resultado con información del archivo</returns>
         [HttpPost("devices/{serial}/screenshot")]
-        public async Task<ActionResult<ActionResponse>> TakeScreenshot([FromRoute] string serial, [FromBody] ScreenshotRequest request) => Ok(await Mediator.Send( new TakeScreenshotCommand { Serial = serial, Filename = request.Filename }));
+        [Produces("image/png")]
+        public async Task<IActionResult> TakeScreenshot([FromRoute] string serial, [FromBody] ScreenshotRequest request)
+        {
+            var response = await Mediator.Send(new TakeScreenshotCommand { Serial = serial, Filename = request.Filename });
+
+            if (response.Bytes == null || response.Bytes.Length == 0)
+                return BadRequest("No se pudo tomar la captura");
+
+            return File(response.Bytes, "image/png", response.Filename ?? "screenshot.png");
+        }
 
         /// <summary>
         /// Ejecuta un comando ADB personalizado

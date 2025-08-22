@@ -12,7 +12,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         Task<ActionResponse> StopMirrorAsync(string serial);
         Task<bool> IsMirrorActiveAsync(string serial);
         Task<Dictionary<string, object>> GetMirrorStatusAsync(string serial);
-        Task<ActionResponse> TakeScreenshotAsync(string serial, string filename);
+        Task<ScreenshotResponse> TakeScreenshotAsync(string serial, string filename);
         Task<ProcessResultResponse> ExecuteAdbCommandAsync(string serial, string command);
         Task<ProcessResultResponse> ExecuteScrcpyCommandAsync(string serial, string command);
     }
