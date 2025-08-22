@@ -2,11 +2,11 @@ using System.Diagnostics;
 
 using Microsoft.Extensions.Logging;
 
-using Mobile.Remote.Toolkit.Business.Models.Android;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
-    public class ProcessCommandExecutor : ICommandExecutor
+    public class ProcessCommandExecutor
     {
         private readonly ILogger<ProcessCommandExecutor> _logger;
 
@@ -15,7 +15,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             _logger = logger;
         }
 
-        public async Task<CommandResultResponse> ExecuteAsync(string executable, string arguments)
+        public async Task<ProcessResultResponse> ExecuteAsync(string executable, string arguments, int timeoutSeconds = 30)
         {
             try
             {
@@ -36,65 +36,28 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 process.Start();
                 process.BeginOutputReadLine();
                 process.BeginErrorReadLine();
-                await Task.Run(() => process.WaitForExit());
+                var exited = await Task.Run(() => process.WaitForExit(timeoutSeconds * 1000));
                 var output = string.Join("\n", outputBuffer);
                 var error = string.Join("\n", errorBuffer);
                 var success = process.ExitCode == 0;
-                return new CommandResultResponse(success, output, error);
+                return new ProcessResultResponse
+                {
+                    Success = success,
+                    Output = output,
+                    Error = error,
+                    ExitCode = process.ExitCode
+                };
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error executing command: {Executable} {Arguments}", executable, arguments);
-                return new CommandResultResponse(false, string.Empty, ex.Message);
-            }
-        }
-
-        public async Task<List<int>> GetProcessIdsByNameAsync(string processName)
-        {
-            try
-            {
-                var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
-                    ? processName[..^4]
-                    : processName;
-                var processes = await Task.Run(() => Process.GetProcessesByName(normalizedName));
-                return new List<int>(processes.Select(p => p.Id));
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting process IDs: {ProcessName}", processName);
-                return new List<int>();
-            }
-        }
-
-        public async Task<bool> KillProcessAsync(int processId)
-        {
-            try
-            {
-                var killed = await Task.Run(() =>
+                return new ProcessResultResponse
                 {
-                    try
-                    {
-                        var process = Process.GetProcessById(processId);
-                        process.Kill();
-                        process.WaitForExit(5000);
-                        return process.HasExited;
-                    }
-                    catch (ArgumentException)
-                    {
-                        return true;
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogError(ex, "Error killing process {ProcessId}", processId);
-                        return false;
-                    }
-                });
-                return killed;
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error killing process: {ProcessId}", processId);
-                return false;
+                    Success = false,
+                    Output = string.Empty,
+                    Error = ex.Message,
+                    ExitCode = -1
+                };
             }
         }
     }

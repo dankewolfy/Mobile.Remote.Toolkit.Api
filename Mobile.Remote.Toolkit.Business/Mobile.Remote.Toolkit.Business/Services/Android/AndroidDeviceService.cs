@@ -1,30 +1,25 @@
 ﻿using Microsoft.Extensions.Logging;
-using Mobile.Remote.Toolkit.Business.Models.Android;
-using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
+
+using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Business.Models;
 using Mobile.Remote.Toolkit.Business.Models.Responses;
+using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public class AndroidDeviceService : IAndroidDeviceService
     {
+        private readonly IProcessHelper _processHelper;
         private readonly IDeviceInfoProvider _deviceInfoProvider;
         private readonly IMirrorService _mirrorService;
         private readonly IScreenshotService _screenshotService;
-        private readonly ICommandExecutor _commandExecutor;
-        private readonly ILogger<AndroidDeviceService> _logger;
 
-        public AndroidDeviceService(
-            IDeviceInfoProvider deviceInfoProvider,
-            IMirrorService mirrorService,
-            IScreenshotService screenshotService,
-            ICommandExecutor commandExecutor,
-            ILogger<AndroidDeviceService> logger)
+        public AndroidDeviceService(IProcessHelper processHelper, IDeviceInfoProvider deviceInfoProvider, IMirrorService mirrorService, IScreenshotService screenshotService, ILogger<AndroidDeviceService> logger)
         {
-            _deviceInfoProvider = deviceInfoProvider;
-            _mirrorService = mirrorService;
-            _screenshotService = screenshotService;
-            _commandExecutor = commandExecutor;
-            _logger = logger;
+            _processHelper = processHelper ?? throw new ArgumentNullException(nameof(processHelper));
+            _deviceInfoProvider = deviceInfoProvider ?? throw new ArgumentNullException(nameof(deviceInfoProvider));
+            _mirrorService = mirrorService ?? throw new ArgumentNullException(nameof(mirrorService));
+            _screenshotService = screenshotService ?? throw new ArgumentNullException(nameof(screenshotService));
         }
 
         public Task<AndroidDeviceResponse> GetDeviceInfoAsync(string serial)
@@ -48,22 +43,25 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         public Task<ActionResponse> TakeScreenshotAsync(string serial, string filename)
             => _screenshotService.TakeScreenshotAsync(serial, filename);
 
-        public Task<CommandResultResponse> ExecuteAdbCommandAsync(string serial, string command)
-            => _commandExecutor.ExecuteAsync("adb", $"-s {serial} {command}");
+        public async Task<ProcessResultResponse> ExecuteAdbCommandAsync(string serial, string command)
+        {
+            var args = $"-s {serial} {command}";
+            return await _processHelper.ExecuteCommandAsync(CommandTool.Adb, args);
+        }
 
-        public Task<CommandResultResponse> ExecuteScrcpyCommandAsync(string serial, string command)
-            => _commandExecutor.ExecuteAsync("scrcpy", $"-s {serial} {command}");
+        public Task<ProcessResultResponse> ExecuteScrcpyCommandAsync(string serial, string command)
+            => _processHelper.ExecuteCommandAsync(CommandTool.Scrcpy, $"-s {serial} {command}");
 
-            public async Task<List<AndroidDeviceResponse>> GetConnectedDeviceInfosAsync()
+        public async Task<List<AndroidDeviceResponse>> GetConnectedDeviceInfosAsync()
+        {
+            var devices = await GetConnectedDeviceSerialsAsync();
+            var deviceInfos = new List<AndroidDeviceResponse>();
+            foreach (var device in devices)
             {
-                var serials = await GetConnectedDeviceSerialsAsync();
-                var deviceInfos = new List<AndroidDeviceResponse>();
-                foreach (var serial in serials)
-                {
-                    var info = await GetDeviceInfoAsync(serial);
-                    deviceInfos.Add(info);
-                }
-                return deviceInfos;
+                var info = await GetDeviceInfoAsync(device.Serial);
+                deviceInfos.Add(info);
             }
+            return deviceInfos;
+        }
     }
 }

@@ -1,8 +1,8 @@
 ﻿#nullable disable
 
-namespace Mobile.Remote.Toolkit.Business.Utils
+namespace Mobile.Remote.Toolkit.Business.Models.Responses
 {
-    public class ProcessResult
+    public class ProcessResultResponse
     {
         public bool Success { get; set; }
         public string Output { get; set; }

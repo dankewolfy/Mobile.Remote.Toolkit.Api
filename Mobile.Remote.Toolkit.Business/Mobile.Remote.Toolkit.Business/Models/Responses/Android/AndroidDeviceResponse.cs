@@ -38,7 +38,7 @@ namespace Mobile.Remote.Toolkit.Business.Models.Responses.Android
         /// 
         /// </summary>
         [DataMember]
-        public string Platform { get; set; } = "android";
+        public string Platform { get; set; } = Patform.Android.ToString();
 
         /// <summary>
         /// 

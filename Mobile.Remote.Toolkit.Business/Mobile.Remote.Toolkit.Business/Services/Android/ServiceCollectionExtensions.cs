@@ -1,21 +1,22 @@
 using Microsoft.Extensions.DependencyInjection;
-using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
+
+using Mobile.Remote.Toolkit.Business.Utils;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public static class ServiceCollectionExtensions
     {
-        public static IServiceCollection AddAndroidDeviceServices(this IServiceCollection services, Action<AndroidDeviceServiceOptions> configure = null)
+        public static IServiceCollection AddAndroidDeviceServices(this IServiceCollection services, Action<AndroidDeviceServiceOptions> configure)
         {
             var options = new AndroidDeviceServiceOptions();
             configure?.Invoke(options);
 
             services.AddSingleton(options);
-            services.AddScoped<ICommandExecutor, ProcessCommandExecutor>();
             services.AddScoped<IDeviceInfoProvider, DeviceInfoProvider>();
             services.AddScoped<IMirrorService, MirrorService>();
             services.AddScoped<IScreenshotService, ScreenshotService>();
             services.AddScoped<IAndroidDeviceService, AndroidDeviceService>();
+            services.AddScoped<IProcessHelper, ProcessHelper>();
 
             return services;
         }
@@ -23,7 +24,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
     public class AndroidDeviceServiceOptions
     {
-        public MirrorOptionsRequest DefaultMirrorOptions { get; set; } = new();
+        public Dictionary<string, object> DefaultMirrorOptions { get; set; } = [];
         public string ScreenshotFolder { get; set; } = "Screenshots";
     }
 }

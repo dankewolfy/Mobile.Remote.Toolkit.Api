@@ -1,16 +1,19 @@
 using Microsoft.Extensions.Logging;
-using Mobile.Remote.Toolkit.Business.Models.Android;
+
+using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Business.Models;
+using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public class DeviceInfoProvider : IDeviceInfoProvider
     {
-        private readonly ICommandExecutor _executor;
+        private readonly IProcessHelper _processHelper;
         private readonly ILogger<DeviceInfoProvider> _logger;
 
-        public DeviceInfoProvider(ICommandExecutor executor, ILogger<DeviceInfoProvider> logger)
+        public DeviceInfoProvider(IProcessHelper processHelper, ILogger<DeviceInfoProvider> logger)
         {
-            _executor = executor;
+            _processHelper = processHelper;
             _logger = logger;
         }
 
@@ -18,17 +21,17 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         {
             try
             {
-                var brandTask = _executor.ExecuteAsync("adb", AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Brand));
-                var modelTask = _executor.ExecuteAsync("adb", AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Model));
-                var versionTask = _executor.ExecuteAsync("adb", AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Version));
+                var brandTask = _processHelper.ExecuteCommandAsync(CommandTool.Adb, AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Brand));
+                var modelTask = _processHelper.ExecuteCommandAsync(CommandTool.Adb, AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Model));
+                var versionTask = _processHelper.ExecuteCommandAsync(CommandTool.Adb, AndroidCommands.GetProperty(serial, AndroidCommands.Properties.Version));
                 await Task.WhenAll(brandTask, modelTask, versionTask);
 
-                var brand = brandTask.Result.Success ? brandTask.Result.Output.Trim() : "Unknown";
-                var model = modelTask.Result.Success ? modelTask.Result.Output.Trim() : "Unknown";
-                var version = versionTask.Result.Success ? versionTask.Result.Output.Trim() : "Unknown";
-                var deviceName = brand != "Unknown" && model != "Unknown"
+                var brand = brandTask.Result.Success ? brandTask.Result.Output.Trim() : Patform.Unknown.ToString();
+                var model = modelTask.Result.Success ? modelTask.Result.Output.Trim() : Patform.Unknown.ToString();
+                var version = versionTask.Result.Success ? versionTask.Result.Output.Trim() : Patform.Unknown.ToString();
+                var deviceName = brand != Patform.Unknown.ToString() && model != Patform.Unknown.ToString()
                     ? $"{brand} {model}"
-                    : $"Android {serial[Math.Max(0, serial.Length - 4)..]}";
+                    : $"{Patform.Android} {serial[Math.Max(0, serial.Length - 4)..]}";
 
                 return new AndroidDeviceResponse
                 {
@@ -38,7 +41,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     Brand = brand,
                     Model = model,
                     AndroidVersion = version,
-                    Platform = "android"
+                    Platform = Patform.Android.ToString()
                 };
             }
             catch (Exception ex)
@@ -48,18 +51,18 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 {
                     Id = serial,
                     Serial = serial,
-                    Name = $"Android {serial}",
-                    Brand = "Unknown",
-                    Model = "Unknown",
-                    AndroidVersion = "Unknown",
-                    Platform = "android"
+                    Name = $"{Patform.Android} {serial}",
+                    Brand = Patform.Unknown.ToString(),
+                    Model = Patform.Unknown.ToString(),
+                    AndroidVersion = Patform.Unknown.ToString(),
+                    Platform = Patform.Android.ToString()
                 };
             }
         }
 
         public async Task<List<AndroidDeviceResponse>> GetConnectedDeviceSerialsAsync()
         {
-            var result = await _executor.ExecuteAsync("adb", AndroidCommands.ListDevices);
+            var result = await _processHelper.ExecuteCommandAsync(CommandTool.Adb, AndroidCommands.ListDevices);
             if (!result.Success) return new List<AndroidDeviceResponse>();
             var serials = result.Output.Split('\n').Skip(1).Where(l => l.Contains("device")).Select(l => l.Split('\t')[0]).ToList();
             var devices = new List<AndroidDeviceResponse>();

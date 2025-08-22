@@ -1,29 +1,33 @@
 using Microsoft.Extensions.Logging;
-using Mobile.Remote.Toolkit.Business.Models.Android;
+
+using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Business.Models;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public class ScreenshotService : IScreenshotService
     {
-        private readonly ICommandExecutor _executor;
+        private readonly IProcessHelper _processHelper;
         private readonly ILogger<ScreenshotService> _logger;
 
-        public ScreenshotService(ICommandExecutor executor, ILogger<ScreenshotService> logger)
+        public ScreenshotService(IProcessHelper processHelper, ILogger<ScreenshotService> logger)
         {
-            _executor = executor;
+            _processHelper = processHelper;
             _logger = logger;
         }
 
-    public async Task<ActionResponse> TakeScreenshotAsync(string serial, string filename)
+        public async Task<ActionResponse> TakeScreenshotAsync(string serial, string filename)
         {
             try
             {
-                var command = $"-s {serial} exec-out screencap -p > {filename}";
-                var result = await _executor.ExecuteAsync("adb", command);
+                var args = $"-s {serial} exec-out screencap -p > {filename}";
+                var result = await _processHelper.ExecuteCommandAsync(CommandTool.Scrcpy, args);
                 if (result.Success)
                 {
                     _logger.LogInformation("Screenshot taken for {Serial} at {Filename}", serial, filename);
-                    return new ActionResponse(true, "Screenshot taken", filename);
+                    var data = new Dictionary<string, object> { { "filename", filename } };
+                    return new ActionResponse(true, "Screenshot taken", data);
                 }
                 else
                 {

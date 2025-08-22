@@ -8,6 +8,7 @@ using Mobile.Remote.Toolkit.Business.Utils;
 using Mobile.Remote.Toolkit.Business.Queries.Base;
 using Mobile.Remote.Toolkit.Business.Services.Android;
 using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Business.Models;
 
 namespace Mobile.Remote.Toolkit.Business.Queries.Android
 {
@@ -28,12 +29,12 @@ namespace Mobile.Remote.Toolkit.Business.Queries.Android
                 try
                 {
                     // Verificar ADB
-                    var adbResult = await _processHelper.ExecuteCommandAsync("adb", "version");
+                    var adbResult = await _processHelper.ExecuteCommandAsync(CommandTool.Adb, "version");
                     response.AdbAvailable = adbResult.Success;
                     response.AdbVersion = adbResult.Output?.Split('\n')[0];
 
                     // Verificar scrcpy
-                    var scrcpyResult = await _processHelper.ExecuteCommandAsync("scrcpy", "--version");
+                    var scrcpyResult = await _processHelper.ExecuteCommandAsync(CommandTool.Scrcpy, "--version");
                     response.ScrcpyAvailable = scrcpyResult.Success;
                     response.ScrcpyVersion = scrcpyResult.Output?.Split('\n')[0];
                 }

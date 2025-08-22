@@ -39,14 +39,15 @@ builder.Services.AddCors(options =>
 // Register all Android services with a single extension method
 builder.Services.AddAndroidDeviceServices(options =>
 {
-    options.DefaultMirrorOptions = new Mobile.Remote.Toolkit.Business.Models.Android.MirrorOptionsRequest { MaxSize = 1080 };
+    options.DefaultMirrorOptions = [];
     options.ScreenshotFolder = "Screenshots";
 });
 
 builder.Services.AddScoped<IProcessHelper>(provider =>
 {
     var logger = provider.GetRequiredService<ILogger<ProcessHelper>>();
-    return new ProcessHelper(logger);
+    var executorLogger = provider.GetRequiredService<ILogger<ProcessCommandExecutor>>();
+    return new ProcessHelper(logger, executorLogger);
 });
 builder.Services.AddScoped<IFileService, FileService>();
 

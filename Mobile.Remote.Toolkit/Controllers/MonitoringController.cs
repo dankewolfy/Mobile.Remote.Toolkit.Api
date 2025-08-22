@@ -38,13 +38,11 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         public async Task<ActionResult<ActionResponse>> StartMonitoring()
         {
             if (_monitoringService.IsMonitoring)
-            {
                 return Ok(new ActionResponse
                 {
                     Success = true,
                     Message = "El monitoreo ya está activo"
                 });
-            }
 
             await _monitoringService.StartMonitoringAsync();
 
@@ -63,13 +61,11 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
         public async Task<ActionResult<ActionResponse>> StopMonitoring()
         {
             if (!_monitoringService.IsMonitoring)
-            {
                 return Ok(new ActionResponse
                 {
                     Success = true,
                     Message = "El monitoreo no está activo"
                 });
-            }
 
             await _monitoringService.StopMonitoringAsync();
 

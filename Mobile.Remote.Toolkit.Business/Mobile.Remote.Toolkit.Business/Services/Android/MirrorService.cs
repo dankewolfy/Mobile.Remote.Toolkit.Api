@@ -1,23 +1,20 @@
-using System.Diagnostics;
-using System.Collections.Concurrent;
-
 using Microsoft.Extensions.Logging;
 
-using Mobile.Remote.Toolkit.Business.Models.Android;
-using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
+using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Business.Models;
+using Mobile.Remote.Toolkit.Business.Utils.Android;
 using Mobile.Remote.Toolkit.Business.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public class MirrorService : IMirrorService
     {
-        private readonly ICommandExecutor _executor;
+        private readonly IProcessHelper _processHelper;
         private readonly ILogger<MirrorService> _logger;
-        private readonly ConcurrentDictionary<string, Process> _activeProcesses = new();
 
-        public MirrorService(ICommandExecutor executor, ILogger<MirrorService> logger)
+        public MirrorService(IProcessHelper processHelper, ILogger<MirrorService> logger)
         {
-            _executor = executor;
+            _processHelper = processHelper;
             _logger = logger;
         }
 
@@ -26,16 +23,16 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             var args = ScrcpyCommands.StartMirror(serial, options);
             try
             {
-                var result = await _executor.ExecuteAsync("scrcpy", args);
-                if (result.Success)
+                var processResult = await _processHelper.ExecuteCommandAsync(CommandTool.Scrcpy, args);
+                if (processResult.Success)
                 {
                     _logger.LogInformation("Mirror started for {Serial}", serial);
                     return new ActionResponse(true, "Mirror started");
                 }
                 else
                 {
-                    _logger.LogWarning("Error starting mirror for {Serial}: {Error}", serial, result.Error);
-                    return new ActionResponse(false, result.Error);
+                    _logger.LogWarning("Error starting mirror for {Serial}: {Error}", serial, processResult.Error);
+                    return new ActionResponse(false, processResult.Error);
                 }
             }
             catch (Exception ex)
@@ -49,9 +46,9 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         {
             try
             {
-                var pids = await _executor.GetProcessIdsByNameAsync("scrcpy");
+                var pids = await _processHelper.GetProcessIdsByNameAsync(CommandTool.Scrcpy.ToString());
                 foreach (var pid in pids)
-                    await _executor.KillProcessAsync(pid);
+                    await _processHelper.KillProcessAsync(pid);
                 _logger.LogInformation("Mirror stopped for {Serial}", serial);
                 return new ActionResponse(true, "Mirror stopped");
             }
@@ -64,7 +61,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
         public async Task<bool> IsMirrorActiveAsync(string serial)
         {
-            var pids = await _executor.GetProcessIdsByNameAsync("scrcpy");
+            var pids = await _processHelper.GetProcessIdsByNameAsync(CommandTool.Scrcpy.ToString());
             return pids.Any();
         }
 

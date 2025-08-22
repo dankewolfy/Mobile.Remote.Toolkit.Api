@@ -5,36 +5,42 @@ using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Logging;
 
+using Mobile.Remote.Toolkit.Business.Models;
+using Mobile.Remote.Toolkit.Business.Models.Responses;
+using Mobile.Remote.Toolkit.Business.Services.Android;
+
 namespace Mobile.Remote.Toolkit.Business.Utils
 {
     public class ProcessHelper : IProcessHelper
     {
         private readonly ILogger<ProcessHelper> _logger;
+        private readonly ProcessCommandExecutor _executor;
         private readonly string _toolsPath;
         private readonly string _adbPath;
         private readonly string _scrcpyPath;
 
-        public ProcessHelper(ILogger<ProcessHelper> logger)
+        public ProcessHelper(ILogger<ProcessHelper> logger, ILogger<ProcessCommandExecutor> executorLogger)
         {
             _logger = logger;
-            
+            _executor = new ProcessCommandExecutor(executorLogger);
+
             var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _toolsPath = Path.Combine(baseDirectory, "Tools");
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "win", "adb.exe");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "win", "scrcpy.exe");
+                _adbPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Adb.ToString(), Patform.Win.ToString(), CommandTool.Adb.ToString() + ".exe");
+                _scrcpyPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Scrcpy.ToString(), Patform.Win.ToString(), CommandTool.Scrcpy.ToString() + ".exe");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "linux", "adb");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "linux", "scrcpy");
+                _adbPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Adb.ToString(), Patform.Linux.ToString(), CommandTool.Adb.ToString());
+                _scrcpyPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Scrcpy.ToString(), Patform.Linux.ToString(), CommandTool.Scrcpy.ToString());
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
             {
-                _adbPath = Path.Combine(_toolsPath, "Android", "adb", "mac", "adb");
-                _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "mac", "scrcpy");
+                _adbPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Adb.ToString(), Patform.Mac.ToString(), CommandTool.Adb.ToString());
+                _scrcpyPath = Path.Combine(_toolsPath, Patform.Android.ToString(), CommandTool.Scrcpy.ToString(), Patform.Mac.ToString(), CommandTool.Scrcpy.ToString());
             }
 
             _logger.LogInformation($"Base Directory: {baseDirectory}");
@@ -43,123 +49,28 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             _logger.LogInformation($"Scrcpy Path: {_scrcpyPath}");
         }
 
-        public async Task<ProcessResult> ExecuteCommandAsync(string fileName, string arguments, int timeoutSeconds = 30)
+        public async Task<ProcessResultResponse> ExecuteCommandAsync(CommandTool tool, string arguments, int timeoutSeconds = 30)
         {
-            var timeoutMs = timeoutSeconds * 1000; // Convertir a milisegundos
-
-            try
+            string actualFileName = tool switch
             {
-                // Mapear comandos a rutas completas
-                var actualFileName = fileName.ToLower() switch
-                {
-                    "adb" => _adbPath,
-                    "scrcpy" => _scrcpyPath,
-                    _ => fileName
-                };
+                CommandTool.Adb => _adbPath,
+                CommandTool.Scrcpy => _scrcpyPath,
+                _ => throw new ArgumentOutOfRangeException(nameof(tool), tool, null)
+            };
 
-                _logger.LogInformation($"Ejecutando: {actualFileName} {arguments}");
-
-                // Verificar que el archivo existe
-                if (!File.Exists(actualFileName) && fileName.ToLower() is "adb" or "scrcpy")
-                {
-                    _logger.LogError($"Herramienta no encontrada: {actualFileName}");
-                    return new ProcessResult
-                    {
-                        Success = false,
-                        Output = string.Empty,
-                        Error = $"Herramienta no encontrada: {actualFileName}"
-                    };
-                }
-
-                var startInfo = new ProcessStartInfo
-                {
-                    FileName = actualFileName,
-                    Arguments = arguments,
-                    UseShellExecute = false,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true,
-                    CreateNoWindow = true,
-                    WorkingDirectory = Directory.Exists(_toolsPath) ? _toolsPath : Environment.CurrentDirectory
-                };
-
-                using var process = new Process { StartInfo = startInfo };
-                
-                var outputBuffer = new List<string>();
-                var errorBuffer = new List<string>();
-
-                process.OutputDataReceived += (_, e) => {
-                    if (!string.IsNullOrEmpty(e.Data))
-                        outputBuffer.Add(e.Data);
-                };
-
-                process.ErrorDataReceived += (_, e) => {
-                    if (!string.IsNullOrEmpty(e.Data))
-                        errorBuffer.Add(e.Data);
-                };
-
-                process.Start();
-                process.BeginOutputReadLine();
-                process.BeginErrorReadLine();
-
-                bool completed = true;
-                if (timeoutSeconds > 0)
-                {
-                    var timeoutMsLocal = timeoutSeconds * 1000;
-                    completed = await Task.Run(() => process.WaitForExit(timeoutMsLocal));
-                    if (!completed)
-                    {
-                        _logger.LogWarning($"Proceso excedió timeout de {timeoutSeconds}s: {actualFileName}");
-                        try
-                        {
-                            process.Kill();
-                        }
-                        catch (Exception ex)
-                        {
-                            _logger.LogError(ex, "Error terminando proceso por timeout");
-                        }
-
-                        return new ProcessResult
-                        {
-                            Success = false,
-                            Output = string.Empty,
-                            Error = $"Timeout después de {timeoutSeconds} segundos"
-                        };
-                    }
-                }
-                else
-                {
-                    await Task.Run(() => process.WaitForExit());
-                }
-
-                var output = string.Join("\n", outputBuffer);
-                var error = string.Join("\n", errorBuffer);
-
-                var success = process.ExitCode == 0;
-
-                _logger.LogInformation($"Proceso completado: ExitCode={process.ExitCode}, Success={success}");
-                if (!string.IsNullOrEmpty(output))
-                    _logger.LogDebug($"Output: {output}");
-                if (!string.IsNullOrEmpty(error))
-                    _logger.LogDebug($"Error: {error}");
-
-                return new ProcessResult
-                {
-                    Success = success,
-                    Output = output,
-                    Error = error,
-                    ExitCode = process.ExitCode
-                };
-            }
-            catch (Exception ex)
+            if (!File.Exists(actualFileName))
             {
-                _logger.LogError(ex, $"Error ejecutando comando: {fileName} {arguments}");
-                return new ProcessResult
+                _logger.LogError($"Herramienta no encontrada: {actualFileName}");
+                return new ProcessResultResponse
                 {
                     Success = false,
                     Output = string.Empty,
-                    Error = ex.Message
+                    Error = $"Herramienta no encontrada: {actualFileName}",
+                    ExitCode = -1
                 };
             }
+
+            return await _executor.ExecuteAsync(actualFileName, arguments, timeoutSeconds);
         }
 
         public async Task<bool> IsProcessRunningAsync(string processName)
@@ -170,9 +81,8 @@ namespace Mobile.Remote.Toolkit.Business.Utils
 
                 await Task.Run(() =>
                 {
-                    // Normalizar el nombre del proceso (quitar .exe si está presente)
-                    var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) 
-                        ? processName[..^4] 
+                    var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                        ? processName[..^4]
                         : processName;
 
                     var processes = Process.GetProcessesByName(normalizedName);
@@ -183,7 +93,7 @@ namespace Mobile.Remote.Toolkit.Business.Utils
                 var isRunning = processes.Length > 0;
 
                 _logger.LogDebug($"Proceso '{processName}' {(isRunning ? "está" : "no está")} ejecutándose");
-                
+
                 return isRunning;
             }
             catch (Exception ex)
@@ -201,9 +111,8 @@ namespace Mobile.Remote.Toolkit.Business.Utils
 
                 var processIds = await Task.Run(() =>
                 {
-                    // Normalizar el nombre del proceso (quitar .exe si está presente)
-                    var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase) 
-                        ? processName[..^4] 
+                    var normalizedName = processName.EndsWith(".exe", StringComparison.OrdinalIgnoreCase)
+                        ? processName[..^4]
                         : processName;
 
                     var processes = Process.GetProcessesByName(normalizedName);
@@ -211,7 +120,7 @@ namespace Mobile.Remote.Toolkit.Business.Utils
                 });
 
                 _logger.LogDebug($"Encontrados {processIds.Count} procesos con nombre '{processName}': [{string.Join(", ", processIds)}]");
-                
+
                 return processIds;
             }
             catch (Exception ex)
@@ -232,19 +141,17 @@ namespace Mobile.Remote.Toolkit.Business.Utils
                     try
                     {
                         var process = Process.GetProcessById(processId);
-                        
+
                         _logger.LogDebug($"Proceso encontrado: {process.ProcessName} (PID: {processId})");
-                        
+
                         process.Kill();
-                        
-                        // Esperar un poco para que el proceso termine
+
                         process.WaitForExit(5000);
-                        
+
                         return process.HasExited;
                     }
                     catch (ArgumentException)
                     {
-                        // El proceso no existe o ya fue terminado
                         _logger.LogDebug($"Proceso con ID {processId} no existe o ya fue terminado");
                         return true;
                     }
