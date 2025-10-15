@@ -16,10 +16,10 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
         }
 
         [HttpGet("devices")]
-        public async Task<ActionResult<object>> GetDevices()
+        public async Task<ActionResult> GetDevices()
         {
             var devices = await _mediator.Send(new Mobile.Remote.Toolkit.Business.Queries.iOS.GetIOSDevicesQuery());
-            return Ok(new { success = true, devices });
+            return Ok(devices);
         }
 
         [HttpGet("devices/{udid}/info")]
