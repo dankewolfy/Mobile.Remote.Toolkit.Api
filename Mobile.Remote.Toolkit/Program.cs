@@ -58,6 +58,7 @@ builder.Services.AddMediatR(typeof(Program).Assembly);
 builder.Services.AddMediatR(typeof(GetAndroidDevicesQuery).Assembly);
 builder.Services.AddMediatR(typeof(ExecuteAdbCommandHandler).Assembly);
 builder.Services.AddMediatR(typeof(GetIOSDevicesHandler).Assembly);
+builder.Services.AddMediatR(typeof(GetIOSDeviceInfoHandler).Assembly);
 
 // Registrar el servicio de dispositivos iOS
 builder.Services.AddTransient<IOSDeviceService>();

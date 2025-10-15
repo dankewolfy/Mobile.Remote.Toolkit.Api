@@ -23,9 +23,10 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
         }
 
         [HttpGet("devices/{udid}/info")]
-        public ActionResult<object> GetDeviceInfo(string udid)
+        public async Task<ActionResult> GetDeviceInfo(string udid)
         {
-            return Ok(new { success = false, error = "iOS no implementado aún" });
+            var device = await _mediator.Send(new Mobile.Remote.Toolkit.Business.Queries.iOS.GetIOSDeviceInfoQuery(udid));
+            return Ok(device);
         }
 
         [HttpPost("devices/{udid}/mirror/start")]

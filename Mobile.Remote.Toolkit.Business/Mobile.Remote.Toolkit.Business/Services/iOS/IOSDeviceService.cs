@@ -5,9 +5,70 @@ using Mobile.Remote.Toolkit.Business.Models.Responses.iOS;
 
 namespace Mobile.Remote.Toolkit.Business.Services.iOS
 {
-    public class IOSDeviceService
-    {
-        public async Task<List<IOSDeviceResponse>> GetDevicesAsync()
+        public class IOSDeviceService
+        {
+        public async Task<IOSDeviceResponse> GetDeviceInfoAsync(string udid)
+        {
+            string infoExePath = System.IO.Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x64", "native", "ideviceinfo.exe");
+            if (!System.IO.File.Exists(infoExePath))
+                infoExePath = System.IO.Path.Combine(AppContext.BaseDirectory, "runtimes", "win-x86", "native", "ideviceinfo.exe");
+
+            string name = "iOS Device";
+            string model = "Unknown";
+            string productType = "Unknown";
+            string productVersion = "Unknown";
+            bool isOnline = false;
+
+            if (System.IO.File.Exists(infoExePath))
+            {
+                var infoProcess = new Process
+                {
+                    StartInfo = new ProcessStartInfo
+                    {
+                        FileName = infoExePath,
+                        Arguments = $"-u {udid}",
+                        RedirectStandardOutput = true,
+                        UseShellExecute = false,
+                        CreateNoWindow = true
+                    }
+                };
+                infoProcess.Start();
+                var infoOutput = await infoProcess.StandardOutput.ReadToEndAsync();
+                infoProcess.WaitForExit();
+
+                var lines = infoOutput.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+                foreach (var line in lines)
+                {
+                    if (line.StartsWith("DeviceName:"))
+                        name = line.Substring("DeviceName:".Length).Trim();
+                    else if (line.StartsWith("Model:"))
+                        model = line.Substring("Model:".Length).Trim();
+                    else if (line.StartsWith("DeviceClass:"))
+                        model = string.IsNullOrWhiteSpace(model) ? line.Substring("DeviceClass:".Length).Trim() : model;
+                    else if (line.StartsWith("HardwareModel:"))
+                        model = string.IsNullOrWhiteSpace(model) ? line.Substring("HardwareModel:".Length).Trim() : model;
+                    else if (line.StartsWith("ProductType:"))
+                        productType = line.Substring("ProductType:".Length).Trim();
+                    else if (line.StartsWith("ProductVersion:"))
+                        productVersion = line.Substring("ProductVersion:".Length).Trim();
+                }
+                if (string.IsNullOrWhiteSpace(model) || model == "Unknown")
+                {
+                    model = productType;
+                }
+                isOnline = true;
+            }
+            return new IOSDeviceResponse
+            {
+                Udid = udid,
+                Name = name,
+                Model = model,
+                ProductType = productType,
+                ProductVersion = productVersion,
+                IsOnline = isOnline
+            };
+    }
+    public async Task<List<IOSDeviceResponse>> GetDevicesAsync()
         {
             var devices = new List<IOSDeviceResponse>();
 
