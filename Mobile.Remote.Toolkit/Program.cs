@@ -6,6 +6,8 @@ using Mobile.Remote.Toolkit.Business.Services;
 using Mobile.Remote.Toolkit.Business.Queries.Android;
 using Mobile.Remote.Toolkit.Business.Commands.Android;
 using Mobile.Remote.Toolkit.Business.Services.Android;
+using Mobile.Remote.Toolkit.Business.Handlers.iOS;
+using Mobile.Remote.Toolkit.Business.Services.iOS;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -55,6 +57,10 @@ builder.Services.AddSingleton<INotificationService, LogNotificationService>();
 builder.Services.AddMediatR(typeof(Program).Assembly);
 builder.Services.AddMediatR(typeof(GetAndroidDevicesQuery).Assembly);
 builder.Services.AddMediatR(typeof(ExecuteAdbCommandHandler).Assembly);
+builder.Services.AddMediatR(typeof(GetIOSDevicesHandler).Assembly);
+
+// Registrar el servicio de dispositivos iOS
+builder.Services.AddTransient<IOSDeviceService>();
 
 // SignalR
 builder.Services.AddSignalR();

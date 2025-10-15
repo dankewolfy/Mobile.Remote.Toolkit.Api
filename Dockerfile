@@ -17,8 +17,6 @@ ENV DOTNET_SYSTEM_GLOBALIZATION_INVARIANT=false
 # Install required packages for Android tools (adb, scrcpy)
 RUN apk update && \
     apk add --no-cache \
-    icu-libs \
-    icu-data-full \
     android-tools \
     ffmpeg \
     curl \

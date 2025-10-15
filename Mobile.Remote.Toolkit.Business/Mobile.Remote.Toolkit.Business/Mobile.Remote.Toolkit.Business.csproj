@@ -8,14 +8,16 @@
 
   <ItemGroup>
     <Folder Include="Commands\iOS\" />
-    <Folder Include="Handlers\" />
+    <Folder Include="Handlers\iOS\" />
     <Folder Include="Models\Requests\iOS\" />
     <Folder Include="Models\Responses\iOS\" />
     <Folder Include="Queries\iOS\" />
+    <Folder Include="Services\iOS\" />
     <Folder Include="Utils\iOS\" />
   </ItemGroup>
 
   <ItemGroup>
+	<PackageReference Include="iMobileDevice-net" Version="1.3.17" />
 	<PackageReference Include="MediatR" Version="11.1.0" />
     <PackageReference Include="Microsoft.AspNetCore.Hosting" Version="2.3.0" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR" Version="1.2.0" />

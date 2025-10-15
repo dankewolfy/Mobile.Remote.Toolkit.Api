@@ -1,4 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
+using MediatR;
+using Mobile.Remote.Toolkit.Business.Queries.iOS;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
 {
@@ -6,10 +8,18 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
     [Route("api/ios")]
     public class IOSController : ControllerBase
     {
-        [HttpGet("devices")]
-        public ActionResult<object> GetDevices()
+        private readonly IMediator _mediator;
+
+        public IOSController(IMediator mediator)
         {
-            return Ok(new { success = true, devices = new List<object>() });
+            _mediator = mediator;
+        }
+
+        [HttpGet("devices")]
+        public async Task<ActionResult<object>> GetDevices()
+        {
+            var devices = await _mediator.Send(new Mobile.Remote.Toolkit.Business.Queries.iOS.GetIOSDevicesQuery());
+            return Ok(new { success = true, devices });
         }
 
         [HttpGet("devices/{udid}/info")]
