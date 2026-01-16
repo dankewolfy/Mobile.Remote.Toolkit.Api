@@ -328,3 +328,22 @@ ASALocalRun/
 
 # MFractors (Xamarin productivity tool) working folder 
 .mfractor/
+
+# Local publish/build outputs
+**/publish/
+
+# Frontend build + node modules
+Mobile.Remote.Toolkit.Vue/dist/
+Mobile.Remote.Toolkit.Vue/node_modules/
+
+# Electron build outputs
+Mobile.Remote.Toolkit.Electron/dist/
+Mobile.Remote.Toolkit.Electron/build/
+**/win-unpacked/
+**/Mobile Remote Toolkit Setup*.exe
+
+# Misc
+.vite/
+npm-debug.log*
+pnpm-lock.yaml
+yarn.lock
