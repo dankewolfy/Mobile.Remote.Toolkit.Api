@@ -1,0 +1,72 @@
+:root {
+  --bg: #0b1220;
+  --muted: #94a3b8;
+}
+body {
+  margin: 0;
+  font-family: system-ui, Segoe UI, Roboto, Helvetica, Arial;
+  background: var(--bg);
+  color: #e6eef8;
+}
+a {
+  color: #93c5fd;
+}
+section {
+  background: #071025;
+  padding: 16px;
+  border-radius: 8px;
+}
+
+/* Utility classes for a minimalistic, clean look */
+.container {
+  max-width: 980px;
+  margin: 24px auto;
+  padding: 0 16px;
+}
+.toolbar {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.btn {
+  background: transparent;
+  color: #cfe8ff;
+  border: 1px solid rgba(147, 197, 253, 0.2);
+  padding: 8px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.card {
+  background: linear-gradient(
+    180deg,
+    rgba(255, 255, 255, 0.02),
+    rgba(255, 255, 255, 0.01)
+  );
+  padding: 16px;
+  border-radius: 10px;
+}
+.muted {
+  color: var(--muted);
+}
+
+.list {
+  padding: 0;
+  margin: 0;
+}
+
+/* subtle hover for items */
+.card .device-item:hover {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+/* master-detail split layout */
+.split { display: grid; grid-template-columns: 360px 1fr; gap: 16px; align-items: start }
+.split .master { max-height: 70vh; overflow: auto }
+.split .detail { max-height: 80vh; overflow: auto }
+}

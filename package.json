@@ -1,0 +1,27 @@
+{
+  "name": "mobile-remote-toolkit-vue",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "dev:open": "vite --open",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint . --ext .ts,.vue"
+  },
+  "dependencies": {
+    "vue": "^3.3.4",
+    "vue-router": "^4.2.0",
+    "axios": "^1.4.0",
+    "@microsoft/signalr": "^7.0.5",
+    "pinia": "^2.0.35"
+  },
+  "devDependencies": {
+    "vite": "^5.0.0",
+    "@vitejs/plugin-vue": "^4.0.0",
+    "typescript": "^5.2.2",
+    "eslint": "^8.0.0",
+    "eslint-plugin-vue": "^9.0.0",
+    "@vue/eslint-config-typescript": "^11.0.0"
+  }
+}
