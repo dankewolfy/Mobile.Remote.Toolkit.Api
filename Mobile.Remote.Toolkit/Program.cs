@@ -51,7 +51,8 @@ builder.Services.AddScoped<IProcessHelper>(provider =>
 });
 
 builder.Services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
-builder.Services.AddSingleton<INotificationService, LogNotificationService>();
+// Use SignalR-based notifications so clients receive live updates
+builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Api.Services.SignalRNotificationService>();
 
 // MediatR
 builder.Services.AddMediatR(typeof(Program).Assembly);
@@ -76,9 +77,17 @@ if (app.Environment.IsDevelopment())
 
 app.UseHttpsRedirection();
 app.UseCors("AllowVueApp");
+
+// Serve built frontend from wwwroot when available
+app.UseDefaultFiles();
+app.UseStaticFiles();
+
 app.UseAuthorization();
 
 app.MapControllers();
 app.MapHub<AndroidDeviceHub>("/hubs/android");
+
+// SPA fallback to index.html (for client-side routing)
+app.MapFallbackToFile("index.html");
 
 app.Run();

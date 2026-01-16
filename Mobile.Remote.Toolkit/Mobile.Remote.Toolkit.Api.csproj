@@ -28,7 +28,8 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Content Include="..\Tools\**\*">
+    <!-- Copy helper tools but exclude iOS helper toolchains and platform-specific native assets (e.g. macOS) to avoid AV false-positives and unnecessary files on Windows builds -->
+    <Content Include="..\Tools\**\*" Exclude="..\Tools\iOS\**\*;**\runtimes\osx-*\**\*">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       <Link>Tools\%(RecursiveDir)%(Filename)%(Extension)</Link>
     </Content>
@@ -40,5 +41,49 @@
     </ItemGroup>
     <Delete Files="@(ToolsToDelete)" />
     <RemoveDir Directories="$(OutputPath)Tools" Condition="Exists('$(OutputPath)Tools')" />
+  </Target>
+
+  <!-- Build Vue frontend and copy into wwwroot before build/publish -->
+  <Target Name="BuildFrontend" BeforeTargets="Build;Publish">
+    <PropertyGroup>
+      <VueProjectDir>$(MSBuildThisFileDirectory)..\..\Mobile.Remote.Toolkit.Vue\</VueProjectDir>
+      <VueDistDir>$(VueProjectDir)dist\</VueDistDir>
+      <WwwRoot>$(MSBuildThisFileDirectory)wwwroot\</WwwRoot>
+    </PropertyGroup>
+
+    <Message Importance="high" Text="Building Vue frontend at '$(VueProjectDir)'..." />
+
+    <!-- Prefer pnpm when available to avoid npm file-lock issues on Windows -->
+    <!-- Prefer pnpm if available in PATH, otherwise fallback to npm -->
+    <Exec WorkingDirectory="$(VueProjectDir)" Command="cmd /c where pnpm &gt;nul 2&gt;nul &amp;&amp; pnpm install || npm ci" ContinueOnError="false" />
+    <Exec WorkingDirectory="$(VueProjectDir)" Command="cmd /c where pnpm &gt;nul 2&gt;nul &amp;&amp; pnpm run build || npm run build" ContinueOnError="false" />
+
+    <!-- Ensure wwwroot exists -->
+    <MakeDir Directories="$(WwwRoot)" Condition="!Exists('$(WwwRoot)')" />
+
+    <!-- Delete previous wwwroot content (except special files) -->
+    <RemoveDir Directories="$(WwwRoot)wwwroot_tmp" Condition="Exists('$(WwwRoot)wwwroot_tmp')" />
+
+    <!-- Copy built files into wwwroot -->
+    <ItemGroup>
+      <VueDistFiles Include="$(VueDistDir)**\*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(VueDistFiles)" DestinationFiles="@(VueDistFiles->'$(WwwRoot)%(RecursiveDir)%(Filename)%(Extension)')" SkipUnchangedFiles="true" />
+    <Message Importance="high" Text="Copied Vue dist to wwwroot." />
+  </Target>
+
+  <!-- Remove non-Windows native artifacts from publish output to avoid AV false-positives -->
+  <Target Name="RemoveNonWindowsRuntimes" AfterTargets="Publish">
+    <PropertyGroup>
+      <_publishDir>$(PublishDir)</_publishDir>
+    </PropertyGroup>
+    <ItemGroup>
+      <_FilesToRemove Include="$(_publishDir)**\idevice*" />
+      <_FilesToRemove Include="$(_publishDir)**\runtimes\osx-*\**\*" />
+      <_FilesToRemove Include="$(_publishDir)**\*.dylib" />
+    </ItemGroup>
+    <Message Importance="high" Text="Removing non-Windows runtime artifacts from publish folder..." />
+    <Delete Files="@(_FilesToRemove)" ContinueOnError="true" />
   </Target>
 </Project>

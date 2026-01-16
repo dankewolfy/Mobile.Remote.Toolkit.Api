@@ -17,6 +17,6 @@ namespace Mobile.Remote.Toolkit.Business.Models.Requests.Android
         /// 
         /// </summary>
         [DataMember]
-        public Dictionary<string, object> Options { get; set; } = [];
+        public Dictionary<string, object> Options { get; set; } = new Dictionary<string, object>();
     }
 }

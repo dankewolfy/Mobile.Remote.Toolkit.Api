@@ -6,6 +6,7 @@ namespace Mobile.Remote.Toolkit.Business.Utils
     public interface IProcessHelper
     {
         Task<ProcessResultResponse> ExecuteCommandAsync(CommandTool tool, string arguments, int timeoutSeconds = 30);
+        Task<bool> StartProcessDetachedAsync(CommandTool tool, string arguments);
         Task<bool> IsProcessRunningAsync(string processName);
         Task<List<int>> GetProcessIdsByNameAsync(string processName);
         Task<bool> KillProcessAsync(int processId);

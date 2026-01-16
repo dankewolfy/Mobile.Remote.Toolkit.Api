@@ -1,0 +1,47 @@
+{
+  "name": "mobile-remote-toolkit-electron",
+  "version": "0.1.0",
+  "private": true,
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder --win nsis"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "electron": "^25.0.0",
+    "electron-builder": "^24.8.0"
+  },
+  "build": {
+    "appId": "com.mobile.remotetoolkit",
+    "productName": "Mobile Remote Toolkit",
+    "copyright": "(c) Mobile Remote Toolkit",
+    "files": [
+      "app/**",
+      "src/**",
+      "resources/**",
+      "node_modules/**",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "../Mobile.Remote.Toolkit/publish/",
+        "to": "api",
+        "filter": [
+          "**/*"
+        ]
+      }
+    ],
+    "win": {
+      "target": [
+        "nsis"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true
+    }
+  }
+}

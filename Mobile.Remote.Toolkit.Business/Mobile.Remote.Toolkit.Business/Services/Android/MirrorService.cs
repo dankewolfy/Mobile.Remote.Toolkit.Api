@@ -23,16 +23,17 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             var args = ScrcpyCommands.StartMirror(serial, options);
             try
             {
-                var processResult = await _processHelper.ExecuteCommandAsync(CommandTool.Scrcpy, args);
-                if (processResult.Success)
+                // Start scrcpy detached so the API returns immediately.
+                var started = await _processHelper.StartProcessDetachedAsync(CommandTool.Scrcpy, args);
+                if (started)
                 {
-                    _logger.LogInformation("Mirror started for {Serial}", serial);
+                    _logger.LogInformation("Mirror started (detached) for {Serial}", serial);
                     return new ActionResponse(true, "Mirror started");
                 }
                 else
                 {
-                    _logger.LogWarning("Error starting mirror for {Serial}: {Error}", serial, processResult.Error);
-                    return new ActionResponse(false, processResult.Error);
+                    _logger.LogWarning("Failed to start detached mirror for {Serial}", serial);
+                    return new ActionResponse(false, "Failed to start mirror");
                 }
             }
             catch (Exception ex)

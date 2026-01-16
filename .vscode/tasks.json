@@ -1,0 +1,22 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Run API",
+      "type": "shell",
+      "command": "dotnet run --project Mobile.Remote.Toolkit\\Mobile.Remote.Toolkit.Api.csproj -c Debug",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Frontend",
+      "type": "shell",
+      "command": "npm --prefix Mobile.Remote.Toolkit.Vue run dev:open",
+      "problemMatcher": []
+    },
+    {
+      "label": "Run Full Stack",
+      "dependsOn": ["Run API", "Run Frontend"],
+      "runOptions": { "runOn": "default" }
+    }
+  ]
+}

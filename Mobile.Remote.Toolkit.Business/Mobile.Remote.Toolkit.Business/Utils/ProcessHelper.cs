@@ -97,6 +97,46 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             return ms.ToArray();
         }
 
+        public async Task<bool> StartProcessDetachedAsync(CommandTool tool, string arguments)
+        {
+            string actualFileName = tool switch
+            {
+                CommandTool.Adb => _adbPath,
+                CommandTool.Scrcpy => _scrcpyPath,
+                _ => throw new ArgumentOutOfRangeException(nameof(tool), tool, null)
+            };
+
+            if (!File.Exists(actualFileName))
+            {
+                _logger.LogError($"Herramienta no encontrada: {actualFileName}");
+                return false;
+            }
+
+            try
+            {
+                var startInfo = new ProcessStartInfo
+                {
+                    FileName = actualFileName,
+                    Arguments = arguments,
+                    UseShellExecute = false,
+                    RedirectStandardOutput = false,
+                    RedirectStandardError = false,
+                    CreateNoWindow = true
+                };
+
+                var process = new Process { StartInfo = startInfo };
+                // start and don't wait — let it run independently
+                var started = process.Start();
+                _logger.LogInformation("Started detached process {Exe} {Args} (PID: {Pid})", actualFileName, arguments, started ? process.Id : -1);
+                return started;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error starting detached process: {Exe} {Args}", actualFileName, arguments);
+                return false;
+            }
+        }
+
         public async Task<bool> IsProcessRunningAsync(string processName)
         {
             try
