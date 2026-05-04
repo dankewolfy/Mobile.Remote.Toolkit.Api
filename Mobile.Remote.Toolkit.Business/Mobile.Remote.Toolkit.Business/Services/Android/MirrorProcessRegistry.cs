@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
+using Microsoft.Extensions.Logging;
 
 namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
@@ -10,10 +11,32 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
     public class MirrorProcessRegistry
     {
         private readonly ConcurrentDictionary<string, Process> _processes = new();
+        private readonly INotificationService _notificationService;
+        private readonly ILogger<MirrorProcessRegistry> _logger;
 
-        /// <summary>Registra o reemplaza el proceso para un serial.</summary>
+        public MirrorProcessRegistry(INotificationService notificationService, ILogger<MirrorProcessRegistry> logger)
+        {
+            _notificationService = notificationService;
+            _logger = logger;
+        }
+
+        /// <summary>
+        /// Registra el proceso para un serial y suscribe al evento Exited para detectar
+        /// cuando el usuario cierra la ventana de scrcpy directamente.
+        /// </summary>
         public void Register(string serial, Process process)
-            => _processes[serial] = process;
+        {
+            // Habilitar la notificación del evento Exited
+            process.EnableRaisingEvents = true;
+            process.Exited += (_, _) =>
+            {
+                _logger.LogInformation("[Mirror] Proceso scrcpy cerrado externamente para {Serial} (PID={Pid})", serial, process.Id);
+                _processes.TryRemove(serial, out _);
+                // Notificar al frontend vía SignalR (fire-and-forget)
+                _ = _notificationService.NotifyMirrorStopped(serial);
+            };
+            _processes[serial] = process;
+        }
 
         /// <summary>Devuelve el proceso si existe y sigue vivo, null en caso contrario.</summary>
         public Process? GetAlive(string serial)
