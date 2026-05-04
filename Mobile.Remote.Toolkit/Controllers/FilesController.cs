@@ -86,5 +86,35 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
                 fullPath = fileInfo.FullName
             });
         }
+        /// <summary>
+        /// Abre la carpeta de screenshots en el explorador de archivos del servidor (Windows).
+        /// </summary>
+        [HttpPost("open-folder")]
+        public IActionResult OpenFolder()
+        {
+            try
+            {
+                var picturesPath = Environment.GetFolderPath(Environment.SpecialFolder.MyPictures);
+                var folderPath = Path.Combine(picturesPath, "ScrcpyManager");
+                Directory.CreateDirectory(folderPath);
+
+                if (OperatingSystem.IsWindows())
+                {
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                    {
+                        FileName = "explorer.exe",
+                        Arguments = $"\"{folderPath}\"",
+                        UseShellExecute = true
+                    });
+                    return Ok(new { success = true, folder = folderPath });
+                }
+
+                return Ok(new { success = false, message = "Solo disponible en Windows" });
+            }
+            catch (Exception ex)
+            {
+                return StatusCode(500, new { success = false, message = ex.Message });
+            }
+        }
     }
 }

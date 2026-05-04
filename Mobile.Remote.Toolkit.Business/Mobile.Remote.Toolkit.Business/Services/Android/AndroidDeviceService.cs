@@ -245,25 +245,60 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
                 var fullPath = Path.Combine(scrcpyFolder, filename);
 
-                var result = await _processHelper.ExecuteCommandAsync("scrcpy",
-                    $"-s {serial} --no-display --screenshot={fullPath}");
-
-                if (result.Success)
+                // adb exec-out screencap -p escribe PNG binario en stdout; no se puede usar
+                // redirección de shell (>) desde C#, así que capturamos el stream directo.
+                var adbPath = _processHelper.GetAdbPath();
+                var startInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    await _notificationService.NotifyScreenshotTaken(serial, filename);
+                    FileName = adbPath,
+                    Arguments = $"-s {serial} exec-out screencap -p",
+                    UseShellExecute = false,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    CreateNoWindow = true,
+                };
+
+                using var process = new System.Diagnostics.Process { StartInfo = startInfo };
+                process.Start();
+
+                // Leer stdout como bytes y escribir al fichero
+                using (var fs = new FileStream(fullPath, FileMode.Create, FileAccess.Write))
+                {
+                    await process.StandardOutput.BaseStream.CopyToAsync(fs);
                 }
+
+                var errorOutput = await process.StandardError.ReadToEndAsync();
+                await Task.Run(() => process.WaitForExit(15000));
+
+                var fileInfo = new FileInfo(fullPath);
+                bool success = process.ExitCode == 0 && fileInfo.Exists && fileInfo.Length > 0;
+
+                if (!success)
+                {
+                    // Limpiar archivo vacío/inválido si hubo error
+                    if (fileInfo.Exists && fileInfo.Length == 0) File.Delete(fullPath);
+
+                    return new ActionResponse
+                    {
+                        Success = false,
+                        Message = "Error tomando screenshot",
+                        Error = string.IsNullOrWhiteSpace(errorOutput) ? $"ExitCode={process.ExitCode}" : errorOutput
+                    };
+                }
+
+                await _notificationService.NotifyScreenshotTaken(serial, filename);
 
                 return new ActionResponse
                 {
-                    Success = result.Success,
-                    Message = result.Success ? "Screenshot tomado correctamente" : "Error tomando screenshot",
-                    Error = result.Success ? null : result.Error,
-                    Data = result.Success ? new Dictionary<string, object>
+                    Success = true,
+                    Message = "Screenshot tomado correctamente",
+                    Data = new Dictionary<string, object>
                     {
                         ["filename"] = filename,
                         ["full_path"] = fullPath,
-                        ["folder"] = scrcpyFolder
-                    } : null
+                        ["folder"] = scrcpyFolder,
+                        ["size"] = fileInfo.Length
+                    }
                 };
             }
             catch (Exception ex)

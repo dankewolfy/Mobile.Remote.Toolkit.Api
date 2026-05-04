@@ -40,6 +40,8 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             _logger.LogInformation($"Scrcpy Path: {_scrcpyPath}");
         }
 
+        public string GetAdbPath() => _adbPath;
+
         public async Task<ProcessResult> ExecuteCommandAsync(string fileName, string arguments, int timeoutSeconds = 30)
         {
             var timeoutMs = timeoutSeconds * 1000; // Convertir a milisegundos
