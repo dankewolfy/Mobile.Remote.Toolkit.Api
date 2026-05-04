@@ -43,7 +43,7 @@ builder.Services.AddScoped<IProcessHelper>(provider =>
 builder.Services.AddScoped<IFileService, FileService>();
 
 builder.Services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
-builder.Services.AddSingleton<INotificationService, Mobile.Remote.Toolkit.Business.Services.LogNotificationService>();
+builder.Services.AddSingleton<INotificationService, SignalRNotificationService>();
 
 //builder.Services.AddHostedService<DeviceMonitoringBackgroundService>();
 
