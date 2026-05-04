@@ -117,6 +117,9 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         {
             try
             {
+                // Log de opciones recibidas (debug)
+                _logger.LogInformation($"[Mirror] Serial={serial} | Opciones recibidas ({options?.Count ?? 0}): {(options == null ? "null" : string.Join(", ", options.Select(kv => $"{kv.Key}={kv.Value} ({kv.Value?.GetType().Name})")))}" );
+
                 // Construir argumentos de scrcpy
                 var arguments = $"-s {serial}";
 
@@ -125,16 +128,16 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     // Normalizar claves a minúsculas para comparación case-insensitive
                     var opts = new Dictionary<string, object>(options, StringComparer.OrdinalIgnoreCase);
 
-                    if (opts.TryGetValue("stayAwake", out var stayAwake) && stayAwake is true)
+                    if (IsTrue(opts, "stayAwake"))
                         arguments += " --stay-awake";
 
-                    if (opts.TryGetValue("noAudio", out var noAudio) && noAudio is true)
+                    if (IsTrue(opts, "noAudio"))
                         arguments += " --no-audio";
 
-                    if (opts.TryGetValue("showTouches", out var showTouches) && showTouches is true)
+                    if (IsTrue(opts, "showTouches"))
                         arguments += " --show-touches";
 
-                    if (opts.TryGetValue("turnScreenOff", out var turnScreenOff) && turnScreenOff is true)
+                    if (IsTrue(opts, "turnScreenOff"))
                         arguments += " --turn-screen-off";
                 }
                 else
@@ -142,7 +145,7 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     arguments += " --stay-awake";
                 }
 
-                _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
+                _logger.LogInformation($"[Mirror] Comando scrcpy final: scrcpy {arguments}");
 
                 // Si ya hay un mirror activo para este serial, rechazar
                 if (_mirrorRegistry.IsActive(serial))
@@ -388,6 +391,22 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     Error = ex.Message
                 };
             }
+        }
+
+        /// <summary>
+        /// Lee una opción booleana del diccionario de forma robusta.
+        /// Soporta System.Boolean (boxed) y System.Text.Json.JsonElement.
+        /// </summary>
+        private static bool IsTrue(Dictionary<string, object> opts, string key)
+        {
+            if (!opts.TryGetValue(key, out var val)) return false;
+            return val switch
+            {
+                bool b => b,
+                System.Text.Json.JsonElement je => je.ValueKind == System.Text.Json.JsonValueKind.True,
+                string s => s.Equals("true", StringComparison.OrdinalIgnoreCase),
+                _ => false
+            };
         }
     }
 }
