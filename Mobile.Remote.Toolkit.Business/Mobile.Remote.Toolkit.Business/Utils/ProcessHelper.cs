@@ -151,6 +151,42 @@ namespace Mobile.Remote.Toolkit.Business.Utils
             }
         }
 
+        public Task<Process> StartBackgroundProcessAsync(string fileName, string arguments)
+        {
+            var actualFileName = fileName.ToLower() switch
+            {
+                "adb" => _adbPath,
+                "scrcpy" => _scrcpyPath,
+                _ => fileName
+            };
+
+            _logger.LogInformation($"Iniciando proceso en segundo plano: {actualFileName} {arguments}");
+
+            if (!File.Exists(actualFileName) && fileName.ToLower() is "adb" or "scrcpy")
+            {
+                _logger.LogError($"Herramienta no encontrada: {actualFileName}");
+                throw new FileNotFoundException($"Herramienta no encontrada: {actualFileName}");
+            }
+
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = actualFileName,
+                Arguments = arguments,
+                UseShellExecute = false,
+                RedirectStandardOutput = false,
+                RedirectStandardError = false,
+                CreateNoWindow = false,
+                WorkingDirectory = Directory.Exists(_toolsPath) ? _toolsPath : Environment.CurrentDirectory
+            };
+
+            var process = new Process { StartInfo = startInfo };
+            process.Start();
+
+            _logger.LogInformation($"Proceso iniciado en segundo plano: PID={process.Id}");
+
+            return Task.FromResult(process);
+        }
+
         public async Task<bool> IsProcessRunningAsync(string processName)
         {
             try

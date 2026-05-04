@@ -132,40 +132,61 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 // Construir argumentos de scrcpy
                 var arguments = $"-s {serial}";
 
-                if (options != null)
+                if (options != null && options.Count > 0)
                 {
-                    if (options.ContainsKey("stayAwake") && (bool)options["stayAwake"])
+                    // Normalizar claves a minúsculas para comparación case-insensitive
+                    var opts = new Dictionary<string, object>(options, StringComparer.OrdinalIgnoreCase);
+
+                    if (opts.TryGetValue("stayAwake", out var stayAwake) && stayAwake is true)
                         arguments += " --stay-awake";
 
-                    if (options.ContainsKey("noAudio") && (bool)options["noAudio"])
+                    if (opts.TryGetValue("noAudio", out var noAudio) && noAudio is true)
                         arguments += " --no-audio";
 
-                    if (options.ContainsKey("showTouches") && (bool)options["showTouches"])
+                    if (opts.TryGetValue("showTouches", out var showTouches) && showTouches is true)
                         arguments += " --show-touches";
 
-                    if (options.ContainsKey("turnScreenOff") && (bool)options["turnScreenOff"])
+                    if (opts.TryGetValue("turnScreenOff", out var turnScreenOff) && turnScreenOff is true)
                         arguments += " --turn-screen-off";
                 }
                 else
                 {
-                    arguments += " --max-size=1920 --bit-rate=8M --max-fps=30 --stay-awake";
+                    arguments += " --stay-awake";
                 }
 
                 _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
 
-                var result = await _processHelper.ExecuteCommandAsync("scrcpy", arguments, 3);
+                // Si ya hay un mirror activo para este serial, rechazar
+                if (_activeProcesses.TryGetValue(serial, out var existingProcess) && !existingProcess.HasExited)
+                {
+                    _logger.LogWarning($"Mirror ya activo para {serial} (PID={existingProcess.Id})");
+                    return new ActionResponse
+                    {
+                        Success = false,
+                        Message = "Ya hay un mirror activo para este dispositivo",
+                        Error = "Mirror already running"
+                    };
+                }
+
+                // Limpiar entrada obsoleta si el proceso anterior ya terminó
+                if (_activeProcesses.ContainsKey(serial))
+                {
+                    try { existingProcess?.Dispose(); } catch { }
+                    _activeProcesses.Remove(serial);
+                }
+
+                var process = await _processHelper.StartBackgroundProcessAsync("scrcpy", arguments);
+                _activeProcesses[serial] = process;
 
                 return new ActionResponse
                 {
-                    Success = result.Success,
-                    Message = result.Success ? "Mirror iniciado correctamente" : "Error iniciando mirror",
-                    Error = result.Success ? null : result.Error,
+                    Success = true,
+                    Message = "Mirror iniciado correctamente",
                     Data = new Dictionary<string, object>
                     {
                         ["serial"] = serial,
                         ["arguments"] = arguments,
-                        ["command_output"] = result.Output,
-                        ["command_error"] = result.Error
+                        ["pid"] = process.Id
                     }
                 };
             }
@@ -175,7 +196,8 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 return new ActionResponse
                 {
                     Success = false,
-                    Error = $"Error iniciando mirror: {ex.Message}"
+                    Message = $"Error iniciando mirror: {ex.Message}",
+                    Error = ex.Message
                 };
             }
         }
@@ -186,9 +208,30 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             {
                 _logger.LogInformation($"Deteniendo mirror para dispositivo: {serial}");
 
-                // Buscar procesos de scrcpy activos
+                // Primero intentar matar el proceso trackeado para este serial
+                if (_activeProcesses.TryGetValue(serial, out var trackedProcess))
+                {
+                    try
+                    {
+                        if (!trackedProcess.HasExited)
+                        {
+                            trackedProcess.Kill();
+                            _logger.LogInformation($"Proceso scrcpy trackeado (PID={trackedProcess.Id}) terminado para {serial}");
+                        }
+                        trackedProcess.Dispose();
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, $"Error terminando proceso trackeado para {serial}");
+                    }
+                    _activeProcesses.Remove(serial);
+                    await _notificationService.NotifyMirrorStopped(serial);
+                    return new ActionResponse { Success = true, Message = "Mirror detenido correctamente" };
+                }
+
+                // Fallback: buscar y matar cualquier proceso scrcpy por nombre
                 var scrcpyProcesses = await _processHelper.GetProcessIdsByNameAsync("scrcpy");
-                
+
                 if (!scrcpyProcesses.Any())
                 {
                     _logger.LogInformation("No se encontraron procesos de scrcpy activos");
@@ -199,7 +242,6 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     };
                 }
 
-                // Terminar procesos de scrcpy
                 var killedProcesses = new List<int>();
                 foreach (var processId in scrcpyProcesses)
                 {
@@ -211,13 +253,10 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     }
                 }
 
-                // Limpiar del diccionario local
-                if (_activeProcesses.ContainsKey(serial))
-                {
-                    _activeProcesses.Remove(serial);
-                }
+                if (killedProcesses.Any())
+                    await _notificationService.NotifyMirrorStopped(serial);
 
-                var result = new ActionResponse
+                return new ActionResponse
                 {
                     Success = killedProcesses.Any(),
                     Message = killedProcesses.Any() ? "Mirror detenido correctamente" : "No se pudieron detener los procesos",
@@ -227,13 +266,6 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                         ["killed_processes"] = killedProcesses
                     }
                 };
-
-                if (killedProcesses.Any())
-                {
-                    await _notificationService.NotifyMirrorStopped(serial);
-                }
-
-                return result;
             }
             catch (Exception ex)
             {
