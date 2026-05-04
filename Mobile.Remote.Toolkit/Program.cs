@@ -33,6 +33,7 @@ builder.Services.AddCors(options =>
 });
 
 // Registrar servicios para Android
+builder.Services.AddSingleton<Mobile.Remote.Toolkit.Business.Services.Android.MirrorProcessRegistry>();
 builder.Services.AddScoped<IAndroidDeviceService, AndroidDeviceService>();
 
 builder.Services.AddScoped<IProcessHelper>(provider =>

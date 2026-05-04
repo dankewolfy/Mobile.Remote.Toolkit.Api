@@ -9,14 +9,15 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 {
     public class AndroidDeviceService : IAndroidDeviceService
     {
-        private readonly Dictionary<string, Process> _activeProcesses = new();
+        private readonly MirrorProcessRegistry _mirrorRegistry;
         private readonly IProcessHelper _processHelper;
         private readonly IFileService _fileService;
         private readonly INotificationService _notificationService;
         private readonly ILogger<AndroidDeviceService> _logger;
 
-        public AndroidDeviceService(IProcessHelper processHelper, IFileService fileService, INotificationService notificationService, ILogger<AndroidDeviceService> logger)
+        public AndroidDeviceService(MirrorProcessRegistry mirrorRegistry, IProcessHelper processHelper, IFileService fileService, INotificationService notificationService, ILogger<AndroidDeviceService> logger)
         {
+            _mirrorRegistry = mirrorRegistry;
             _processHelper = processHelper;
             _fileService = fileService;
             _notificationService = notificationService;
@@ -109,21 +110,8 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             };
         }
 
-        public async Task<bool> IsMirrorActiveAsync(string serial)
-        {
-            try
-            {
-                // Verificar si hay procesos de scrcpy corriendo
-                var scrcpyProcesses = await _processHelper.GetProcessIdsByNameAsync("scrcpy");
-                
-                return scrcpyProcesses.Any();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, $"Error verificando estado de mirror para {serial}");
-                return false;
-            }
-        }
+        public Task<bool> IsMirrorActiveAsync(string serial)
+            => Task.FromResult(_mirrorRegistry.IsActive(serial));
 
         public async Task<ActionResponse> StartMirrorAsync(string serial, Dictionary<string, object> options = null)
         {
@@ -157,9 +145,10 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 _logger.LogInformation($"Iniciando scrcpy con argumentos: {arguments}");
 
                 // Si ya hay un mirror activo para este serial, rechazar
-                if (_activeProcesses.TryGetValue(serial, out var existingProcess) && !existingProcess.HasExited)
+                if (_mirrorRegistry.IsActive(serial))
                 {
-                    _logger.LogWarning($"Mirror ya activo para {serial} (PID={existingProcess.Id})");
+                    var pid = _mirrorRegistry.GetAlive(serial)!.Id;
+                    _logger.LogWarning($"Mirror ya activo para {serial} (PID={pid})");
                     return new ActionResponse
                     {
                         Success = false,
@@ -168,15 +157,8 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                     };
                 }
 
-                // Limpiar entrada obsoleta si el proceso anterior ya terminó
-                if (_activeProcesses.ContainsKey(serial))
-                {
-                    try { existingProcess?.Dispose(); } catch { }
-                    _activeProcesses.Remove(serial);
-                }
-
                 var process = await _processHelper.StartBackgroundProcessAsync("scrcpy", arguments);
-                _activeProcesses[serial] = process;
+                _mirrorRegistry.Register(serial, process);
 
                 return new ActionResponse
                 {
@@ -208,64 +190,30 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
             {
                 _logger.LogInformation($"Deteniendo mirror para dispositivo: {serial}");
 
-                // Primero intentar matar el proceso trackeado para este serial
-                if (_activeProcesses.TryGetValue(serial, out var trackedProcess))
+                var trackedProcess = _mirrorRegistry.Remove(serial);
+
+                if (trackedProcess == null)
                 {
-                    try
-                    {
-                        if (!trackedProcess.HasExited)
-                        {
-                            trackedProcess.Kill();
-                            _logger.LogInformation($"Proceso scrcpy trackeado (PID={trackedProcess.Id}) terminado para {serial}");
-                        }
-                        trackedProcess.Dispose();
-                    }
-                    catch (Exception ex)
-                    {
-                        _logger.LogWarning(ex, $"Error terminando proceso trackeado para {serial}");
-                    }
-                    _activeProcesses.Remove(serial);
-                    await _notificationService.NotifyMirrorStopped(serial);
-                    return new ActionResponse { Success = true, Message = "Mirror detenido correctamente" };
+                    _logger.LogInformation($"No hay mirror registrado para {serial}");
+                    return new ActionResponse { Success = true, Message = "No hay mirror activo para este dispositivo" };
                 }
 
-                // Fallback: buscar y matar cualquier proceso scrcpy por nombre
-                var scrcpyProcesses = await _processHelper.GetProcessIdsByNameAsync("scrcpy");
-
-                if (!scrcpyProcesses.Any())
+                try
                 {
-                    _logger.LogInformation("No se encontraron procesos de scrcpy activos");
-                    return new ActionResponse
+                    if (!trackedProcess.HasExited)
                     {
-                        Success = true,
-                        Message = "No hay mirror activo para este dispositivo"
-                    };
+                        trackedProcess.Kill();
+                        _logger.LogInformation($"Proceso scrcpy (PID={trackedProcess.Id}) terminado para {serial}");
+                    }
+                    trackedProcess.Dispose();
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, $"Error terminando proceso para {serial}");
                 }
 
-                var killedProcesses = new List<int>();
-                foreach (var processId in scrcpyProcesses)
-                {
-                    var killed = await _processHelper.KillProcessAsync(processId);
-                    if (killed)
-                    {
-                        killedProcesses.Add(processId);
-                        _logger.LogInformation($"Proceso scrcpy {processId} terminado");
-                    }
-                }
-
-                if (killedProcesses.Any())
-                    await _notificationService.NotifyMirrorStopped(serial);
-
-                return new ActionResponse
-                {
-                    Success = killedProcesses.Any(),
-                    Message = killedProcesses.Any() ? "Mirror detenido correctamente" : "No se pudieron detener los procesos",
-                    Data = new Dictionary<string, object>
-                    {
-                        ["serial"] = serial,
-                        ["killed_processes"] = killedProcesses
-                    }
-                };
+                await _notificationService.NotifyMirrorStopped(serial);
+                return new ActionResponse { Success = true, Message = "Mirror detenido correctamente" };
             }
             catch (Exception ex)
             {
@@ -373,11 +321,14 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
                 ["timestamp"] = DateTime.UtcNow
             };
 
-            if (isMirrorActive && _activeProcesses.ContainsKey(serial))
+            if (isMirrorActive)
             {
-                var process = _activeProcesses[serial];
-                status["process_id"] = process.Id;
-                status["process_name"] = process.ProcessName;
+                var process = _mirrorRegistry.GetAlive(serial);
+                if (process != null)
+                {
+                    status["process_id"] = process.Id;
+                    status["process_name"] = process.ProcessName;
+                }
             }
 
             return status;
