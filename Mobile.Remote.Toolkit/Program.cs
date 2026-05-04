@@ -9,6 +9,20 @@ using Mobile.Remote.Toolkit.Business.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Asegurar que los logs del proyecto se vean siempre en consola
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole(options => options.FormatterName = "simple");
+builder.Logging.AddSimpleConsole(options =>
+{
+    options.SingleLine = true;
+    options.TimestampFormat = "HH:mm:ss ";
+    options.IncludeScopes = false;
+});
+builder.Logging.SetMinimumLevel(LogLevel.Information);
+builder.Logging.AddFilter("Microsoft.AspNetCore", LogLevel.Warning);
+builder.Logging.AddFilter("Microsoft.EntityFrameworkCore", LogLevel.Warning);
+builder.Logging.AddFilter("Mobile.Remote.Toolkit", LogLevel.Debug);
+
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();

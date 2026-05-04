@@ -103,11 +103,54 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
         {
             return action.ToLower() switch
             {
-                "start_mirror" => await StartMirrorAsync(serial, options),
-                "stop_mirror" => await StopMirrorAsync(serial),
-                "screenshot" => await TakeScreenshotAsync(serial, payload?.GetValueOrDefault("filename")?.ToString()),
+                "start_mirror"   => await StartMirrorAsync(serial, options),
+                "stop_mirror"    => await StopMirrorAsync(serial),
+                "screenshot"     => await TakeScreenshotAsync(serial, payload?.GetValueOrDefault("filename")?.ToString()),
+                "home_button"    => await SendKeyeventAsync(serial, "KEYCODE_HOME"),
+                "back_button"    => await SendKeyeventAsync(serial, "KEYCODE_BACK"),
+                "volume_up"      => await SendKeyeventAsync(serial, "KEYCODE_VOLUME_UP"),
+                "volume_down"    => await SendKeyeventAsync(serial, "KEYCODE_VOLUME_DOWN"),
+                "wake_device"    => await ToggleScreenAsync(serial),
                 _ => new ActionResponse { Success = false, Error = "Acción no reconocida" }
             };
+        }
+
+        private async Task<ActionResponse> SendKeyeventAsync(string serial, string keycode)
+        {
+            _logger.LogInformation("[Keyevent] Serial={Serial} Keycode={Keycode}", serial, keycode);
+            var result = await _processHelper.ExecuteCommandAsync("adb", $"-s {serial} shell input keyevent {keycode}");
+            _logger.LogInformation("[Keyevent] Success={Success} Output='{Output}' Error='{Error}'", result.Success, result.Output, result.Error);
+            return new ActionResponse
+            {
+                Success = result.Success,
+                Message = result.Success ? $"Keyevent {keycode} enviado" : "Error enviando keyevent",
+                Error = result.Success ? null : result.Error
+            };
+        }
+
+        private async Task<ActionResponse> ToggleScreenAsync(string serial)
+        {
+            // Detectar si la pantalla está encendida o apagada
+            var powerResult = await _processHelper.ExecuteCommandAsync("adb", $"-s {serial} shell dumpsys power");
+            var output = powerResult.Output ?? string.Empty;
+
+            // Distintos Android muestran distintos campos; intentar los más comunes
+            bool isScreenOn = output.Contains("Display Power: state=ON")
+                           || output.Contains("mWakefulness=Awake")
+                           || output.Contains("mWakefulnessRaw=Awake");
+
+            if (isScreenOn)
+            {
+                // Apagar pantalla manteniendo el mirror
+                var r = await _processHelper.ExecuteCommandAsync("adb", $"-s {serial} shell input keyevent KEYCODE_SLEEP");
+                return new ActionResponse { Success = r.Success, Message = r.Success ? "Pantalla apagada" : "Error apagando pantalla", Error = r.Error };
+            }
+            else
+            {
+                // Encender pantalla
+                var r = await _processHelper.ExecuteCommandAsync("adb", $"-s {serial} shell input keyevent KEYCODE_WAKEUP");
+                return new ActionResponse { Success = r.Success, Message = r.Success ? "Pantalla encendida" : "Error encendiendo pantalla", Error = r.Error };
+            }
         }
 
         public Task<bool> IsMirrorActiveAsync(string serial)

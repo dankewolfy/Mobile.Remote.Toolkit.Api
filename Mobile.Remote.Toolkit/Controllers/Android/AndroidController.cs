@@ -1,4 +1,5 @@
-﻿using Microsoft.AspNetCore.Mvc;
+﻿using MediatR;
+using Microsoft.AspNetCore.Mvc;
 
 using Mobile.Remote.Toolkit.Api.Controllers.Base;
 using Mobile.Remote.Toolkit.Business.Commands.Android;
@@ -103,8 +104,8 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbCommandRequest request)
         {
             request.Serial = serial;
-            //ActionResponse response = await Mediator.Send(request);
-            return Ok(request);
+            ActionResponse response = await Mediator.Send<ActionResponse>((IRequest<ActionResponse>)request);
+            return Ok(response);
         }
 
         [HttpGet("devices")]
@@ -118,15 +119,25 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         [HttpPost("devices/{serial}/action")]
         public async Task<IActionResult> ExecuteAction(string serial, [FromBody] AndroidActionRequest request)
         {
-            var command = new ExecuteAndroidActionCommand
+            Logger.LogInformation("[Action] Serial={Serial} Action={Action}", serial, request?.Action);
+            try
             {
-                Serial = serial,
-                Action = request.Action,
-                Payload = request.Payload
-            };
+                var command = new ExecuteAndroidActionCommand
+                {
+                    Serial = serial,
+                    Action = request.Action,
+                    Payload = request.Payload
+                };
 
-            var result = await Mediator.Send(command);
-            return Ok(result);
+                var result = await Mediator.Send<ActionResponse>(command);
+                Logger.LogInformation("[Action] Resultado: Success={Success} Message={Message} Error={Error}", result?.Success, result?.Message, result?.Error);
+                return Ok(result);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "[Action] Excepción ejecutando acción {Action} en {Serial}", request?.Action, serial);
+                return ApiError($"Error ejecutando acción {request?.Action}", ex.Message);
+            }
         }
 
         /// <summary>

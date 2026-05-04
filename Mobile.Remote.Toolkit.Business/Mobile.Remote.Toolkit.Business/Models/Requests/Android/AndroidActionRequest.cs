@@ -5,7 +5,7 @@
         /// <summary>
         /// 
         /// </summary>
-        public string Serial { get; set; }
+        public string? Serial { get; set; }
 
         /// <summary>
         /// 
