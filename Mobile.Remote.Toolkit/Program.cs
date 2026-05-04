@@ -104,7 +104,22 @@ if (app.Environment.IsDevelopment())
 }
 
 app.UseHttpsRedirection();
-app.UseCors("AllowVueApp");
+
+// CORS: when hosted inside Electron the renderer origin is `null` (file://).
+// In that case we allow all origins since the API only listens on localhost.
+var isElectronHosted = Environment.GetEnvironmentVariable("ELECTRON_HOSTED") == "1";
+if (isElectronHosted)
+{
+    app.UseCors(policy => policy
+        .SetIsOriginAllowed(_ => true)   // allow null + any localhost
+        .AllowAnyHeader()
+        .AllowAnyMethod()
+        .AllowCredentials());
+}
+else
+{
+    app.UseCors("AllowVueApp");
+}
 app.UseAuthorization();
 
 app.MapControllers();
