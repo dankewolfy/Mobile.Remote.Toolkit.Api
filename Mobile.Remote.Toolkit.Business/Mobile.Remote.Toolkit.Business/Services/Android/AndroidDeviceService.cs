@@ -190,6 +190,10 @@ namespace Mobile.Remote.Toolkit.Business.Services.Android
 
                 _logger.LogInformation($"[Mirror] Comando scrcpy final: scrcpy {arguments}");
 
+                // Título de ventana fijo para que Electron pueda encontrarla por nombre (sin comillas — serial no tiene espacios)
+                arguments += $" --window-title MRT-{serial}";
+                _logger.LogInformation($"[Mirror] Comando scrcpy CON título: scrcpy {arguments}");
+
                 // Si ya hay un mirror activo para este serial, rechazar
                 if (_mirrorRegistry.IsActive(serial))
                 {
