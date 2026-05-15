@@ -5,6 +5,7 @@ using Mobile.Remote.Toolkit.Business.Commands.Android;
 using Mobile.Remote.Toolkit.Business.Queries.Android;
 using Mobile.Remote.Toolkit.Business.Services;
 using Mobile.Remote.Toolkit.Business.Services.Android;
+using Mobile.Remote.Toolkit.Business.Services.iOS;
 using Mobile.Remote.Toolkit.Business.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -47,8 +48,11 @@ builder.Services.AddCors(options =>
 });
 
 // Registrar servicios para Android
-builder.Services.AddSingleton<Mobile.Remote.Toolkit.Business.Services.Android.MirrorProcessRegistry>();
+builder.Services.AddSingleton<MirrorProcessRegistry>();
 builder.Services.AddScoped<IAndroidDeviceService, AndroidDeviceService>();
+// Registrar servicios para iOS
+builder.Services.AddSingleton<IOSMirrorProcessRegistry>();
+builder.Services.AddScoped<IIOSDeviceService, IOSDeviceService>();
 
 builder.Services.AddScoped<IProcessHelper>(provider =>
 {
