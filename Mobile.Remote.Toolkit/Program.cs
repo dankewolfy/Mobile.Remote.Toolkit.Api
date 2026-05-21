@@ -129,4 +129,24 @@ app.UseAuthorization();
 app.MapControllers();
 app.MapHub<AndroidDeviceHub>("/hubs/android");
 
+app.Lifetime.ApplicationStarted.Register(() =>
+{
+    _ = Task.Run(async () =>
+    {
+        using var scope = app.Services.CreateScope();
+        var logger = scope.ServiceProvider.GetRequiredService<ILoggerFactory>().CreateLogger("Startup");
+        var monitoringService = scope.ServiceProvider.GetRequiredService<IDeviceMonitoringService>();
+
+        try
+        {
+            await monitoringService.StartMonitoringAsync();
+            logger.LogInformation("Monitoreo de dispositivos auto-iniciado.");
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "No se pudo auto-iniciar el monitoreo de dispositivos.");
+        }
+    });
+});
+
 app.Run();
