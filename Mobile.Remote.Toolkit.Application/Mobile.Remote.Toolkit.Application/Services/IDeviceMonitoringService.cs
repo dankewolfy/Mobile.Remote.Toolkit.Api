@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Application.Services
+﻿using Mobile.Remote.Toolkit.Domain.Events;
+
+namespace Mobile.Remote.Toolkit.Application.Services
 {
     public interface IDeviceMonitoringService
     {

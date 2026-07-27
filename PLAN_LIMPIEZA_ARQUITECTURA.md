@@ -40,9 +40,20 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   de extraer Infrastructure, adelantando lo que en la numeración original era el paso 13 de la
   Fase 3 — se prioriza aquí porque simplifica el resto del trabajo (todo lo que se mueva después
   ya usa el namespace final).
-- ⬜ Todo lo demás (Domain con contenido real, extracción de Infrastructure, composition root,
-  simetría Android/iOS, conectar el controller de iOS, preparar monitoreo multiplataforma) sigue
-  pendiente — ver fases 3 a 7 abajo.
+- ✅ **Fase 3 — Domain con contenido real**: entidad `Device` unificada movida a
+  `Domain/Entities/Device.cs` (se borraron los dos duplicados de Application y el
+  `Domain/Android/AndroidDevice.cs` viejo). `DeviceEventArgs`/`DeviceStatusChangedEventArgs`
+  movidos a `Domain/Events/`. Ajuste no anticipado en el texto original del plan: `DeviceEventArgs`
+  usaba `AndroidDeviceResponse` (un DTO de Application) como tipo de su propiedad `Device` — de
+  haberlo movido tal cual a Domain se habría creado una dependencia Domain→Application, invirtiendo
+  la regla de oro. Se cambió esa propiedad para usar la entidad `Domain.Entities.Device`, y
+  `DeviceMonitoringService` ahora mapea `AndroidDeviceResponse` → `Device` al disparar los eventos
+  (método privado `ToDomainDevice`). Se agregó `ProjectReference` de Application → Domain (no
+  existía). Verificado: `Domain.csproj` sigue sin ningún `PackageReference`. Build de la solución
+  sin errores.
+- ⬜ Todo lo demás (extracción de Infrastructure, composition root, simetría Android/iOS, conectar
+  el controller de iOS, preparar monitoreo multiplataforma) sigue pendiente — ver fases 4 a 7
+  abajo.
 
 ## Arquitectura objetivo
 

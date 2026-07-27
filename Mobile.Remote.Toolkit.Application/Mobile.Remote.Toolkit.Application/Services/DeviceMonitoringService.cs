@@ -7,6 +7,8 @@ using Microsoft.Extensions.DependencyInjection;
 
 using Mobile.Remote.Toolkit.Application.Services.Android;
 using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Domain.Entities;
+using Mobile.Remote.Toolkit.Domain.Events;
 
 namespace Mobile.Remote.Toolkit.Application.Services
 {
@@ -152,7 +154,7 @@ namespace Mobile.Remote.Toolkit.Application.Services
                     {
                         _lastKnownDevices[device.Serial] = device;
                         _logger.LogInformation($"Dispositivo Android detectado: {device.Name} ({device.Serial})");
-                        DeviceConnected?.Invoke(this, new DeviceEventArgs { Device = device });
+                        DeviceConnected?.Invoke(this, new DeviceEventArgs { Device = ToDomainDevice(device) });
                         await notificationService.NotifyDeviceConnected(device);
                     }
                 }
@@ -166,7 +168,7 @@ namespace Mobile.Remote.Toolkit.Application.Services
                 {
                     _lastKnownDevices.TryRemove(serial, out var device);
                     _logger.LogInformation($"Dispositivo Android desconectado: {serial}");
-                    DeviceDisconnected?.Invoke(this, new DeviceEventArgs { Device = device! });
+                    DeviceDisconnected?.Invoke(this, new DeviceEventArgs { Device = ToDomainDevice(device!) });
                     await notificationService.NotifyDeviceDisconnected(serial);
                 }
             }
@@ -185,5 +187,13 @@ namespace Mobile.Remote.Toolkit.Application.Services
             StopWmiWatchers();
             _updateLock.Dispose();
         }
+
+        private static Device ToDomainDevice(AndroidDeviceResponse response) => new()
+        {
+            Serial = response.Serial,
+            Platform = response.Platform,
+            Name = response.Name,
+            Active = response.Active,
+        };
     }
 }

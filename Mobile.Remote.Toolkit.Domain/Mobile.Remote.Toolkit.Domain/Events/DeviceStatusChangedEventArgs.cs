@@ -1,4 +1,4 @@
-﻿namespace Mobile.Remote.Toolkit.Application.Services
+namespace Mobile.Remote.Toolkit.Domain.Events
 {
     public class DeviceStatusChangedEventArgs : EventArgs
     {
