@@ -70,9 +70,25 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   detecta un dispositivo Android real conectado end-to-end a través de la nueva capa de
   Infrastructure, y sigue mostrando "Monitoreo de dispositivos auto-iniciado." `Domain.csproj`
   confirmado sin ningún `PackageReference` tras el cambio.
-- ⬜ Todo lo demás (composition root dedicado con `AddApplication`/`AddInfrastructure`, simetría
-  Android/iOS, conectar el controller de iOS, preparar monitoreo multiplataforma) sigue
-  pendiente — ver fases 5 a 7 abajo.
+- ✅ **Fase 5 — Composition root limpio** (pendiente de commit): agregado
+  `Mobile.Remote.Toolkit.Application/DependencyInjection.cs` con `AddApplication(this
+  IServiceCollection services)`, que registra MediatR escaneando únicamente el assembly de
+  Application (antes `Program.cs` escaneaba también su propio assembly sin necesidad real: no
+  hay ningún `IRequestHandler`/`INotificationHandler` en la capa Api). Agregado
+  `Mobile.Remote.Toolkit.Infrastructure/DependencyInjection.cs` con `AddInfrastructure(this
+  IServiceCollection services, IConfiguration configuration)`, que registra
+  `MirrorProcessRegistry`, `IAndroidDeviceService`, `IOSMirrorProcessRegistry`,
+  `IIOSDeviceService`, `IProcessHelper`, `IFileService` e `IDeviceMonitoringService` (todo lo
+  que antes estaba disperso en `Program.cs`). `INotificationService`/`SignalRNotificationService`
+  se queda registrado en `Program.cs` (capa Api) tal como ya preveía el texto original de la
+  Fase 4 — depende de `IHubContext<AndroidDeviceHub>`, un detalle de hosting de ASP.NET.
+  `Program.cs` quedó reducido a Logging/CORS/Controllers/Swagger/SignalR (lo genuinamente Api) +
+  el registro de `SignalRNotificationService` + `builder.Services.AddApplication();
+  builder.Services.AddInfrastructure(builder.Configuration);`. Verificado: `dotnet build` sin
+  errores y `dotnet run` levanta la API, detecta el mismo dispositivo Android real end-to-end y
+  sigue mostrando "Monitoreo de dispositivos auto-iniciado."
+- ⬜ Todo lo demás (simetría Android/iOS, conectar el controller de iOS, preparar monitoreo
+  multiplataforma) sigue pendiente — ver fases 6 y 7 abajo.
 
 ## Arquitectura objetivo
 

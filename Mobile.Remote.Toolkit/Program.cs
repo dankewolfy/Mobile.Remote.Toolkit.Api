@@ -1,17 +1,8 @@
-using MediatR;
 using Mobile.Remote.Toolkit.Api.Hubs;
 using Mobile.Remote.Toolkit.Api.Services;
-using Mobile.Remote.Toolkit.Application.Commands.Android;
-using Mobile.Remote.Toolkit.Application.Queries.Android;
+using Mobile.Remote.Toolkit.Application;
 using Mobile.Remote.Toolkit.Application.Services;
-using Mobile.Remote.Toolkit.Application.Services.Android;
-using Mobile.Remote.Toolkit.Application.Services.iOS;
-using Mobile.Remote.Toolkit.Application.Utils;
-using Mobile.Remote.Toolkit.Infrastructure.Android;
-using Mobile.Remote.Toolkit.Infrastructure.iOS;
-using Mobile.Remote.Toolkit.Infrastructure.Processes;
-using Mobile.Remote.Toolkit.Infrastructure.Files;
-using Mobile.Remote.Toolkit.Infrastructure.Monitoring;
+using Mobile.Remote.Toolkit.Infrastructure;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -52,28 +43,12 @@ builder.Services.AddCors(options =>
     });
 });
 
-// Registrar servicios para Android
-builder.Services.AddSingleton<MirrorProcessRegistry>();
-builder.Services.AddScoped<IAndroidDeviceService, AndroidDeviceService>();
-// Registrar servicios para iOS
-builder.Services.AddSingleton<IOSMirrorProcessRegistry>();
-builder.Services.AddScoped<IIOSDeviceService, IOSDeviceService>();
-
-builder.Services.AddScoped<IProcessHelper>(provider =>
-{
-    var logger = provider.GetRequiredService<ILogger<ProcessHelper>>();
-    return new ProcessHelper(logger);
-});
-builder.Services.AddScoped<IFileService, FileService>();
-
-builder.Services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
+// El notificador SignalR depende de IHubContext<AndroidDeviceHub>, un detalle de hosting
+// de ASP.NET: se registra aquí en la capa Api, no en Infrastructure.
 builder.Services.AddSingleton<INotificationService, SignalRNotificationService>();
 
-// MediatR
-builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
-    typeof(GetAndroidDevicesQuery).Assembly,
-    typeof(Program).Assembly
-));
+builder.Services.AddApplication();
+builder.Services.AddInfrastructure(builder.Configuration);
 
 // SignalR
 builder.Services.AddSignalR();
