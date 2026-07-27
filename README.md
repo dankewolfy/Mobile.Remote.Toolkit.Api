@@ -1,10 +1,10 @@
 # Mobile Remote Toolkit API
 
-Backend ASP.NET Core 8 para administracion remota de dispositivos moviles, con foco actual en Android (ADB + scrcpy), endpoints REST, SignalR y capa Business separada.
+Backend ASP.NET Core 10 para administracion remota de dispositivos moviles, con foco actual en Android (ADB + scrcpy), endpoints REST, SignalR y capa Business separada.
 
 ## Resumen
 
-- API Web en .NET 8
+- API Web en .NET 10
 - Arquitectura por capas: Api, Business, Domain
 - Casos Android implementados con MediatR
 - Soporte inicial iOS (stubs)
@@ -32,7 +32,7 @@ Mobile.Remote.Toolkit.Api/
 ## Requisitos
 
 - Windows 10/11
-- .NET SDK 8.0+
+- .NET SDK 10.0+
 - Herramientas Android disponibles en:
   - Tools/Android/adb/adb.exe
   - Tools/Android/scrcpy/scrcpy.exe
