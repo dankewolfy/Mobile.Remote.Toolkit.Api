@@ -1,5 +1,6 @@
 using MediatR;
 
+using Mobile.Remote.Toolkit.Application.Queries.Base;
 using Mobile.Remote.Toolkit.Application.Services.iOS;
 
 namespace Mobile.Remote.Toolkit.Application.Queries.iOS
@@ -8,17 +9,15 @@ namespace Mobile.Remote.Toolkit.Application.Queries.iOS
     {
         public string Udid { get; set; }
 
-        public class GetIOSDeviceStatusQueryHandler : IRequestHandler<GetIOSDeviceStatusQuery, Dictionary<string, object>>
+        public class GetIOSDeviceStatusQueryHandler : IOSBaseQueryHandler<GetIOSDeviceStatusQuery, Dictionary<string, object>>
         {
-            private readonly IIOSDeviceService _iosService;
-
-            public GetIOSDeviceStatusQueryHandler(IIOSDeviceService iosService)
+            public GetIOSDeviceStatusQueryHandler(IMediator mediator, IIOSDeviceService iosService)
+                : base(mediator, iosService)
             {
-                _iosService = iosService;
             }
 
-            public async Task<Dictionary<string, object>> Handle(GetIOSDeviceStatusQuery request, CancellationToken cancellationToken)
-                => await _iosService.GetDeviceStatusAsync(request.Udid);
+            public override async Task<Dictionary<string, object>> Handle(GetIOSDeviceStatusQuery request, CancellationToken cancellationToken)
+                => await IOSService.GetDeviceStatusAsync(request.Udid);
         }
     }
 }

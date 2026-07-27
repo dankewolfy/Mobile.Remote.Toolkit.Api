@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using Mobile.Remote.Toolkit.Api.Controllers.Base;
 using Mobile.Remote.Toolkit.Application.Utils;
 using Mobile.Remote.Toolkit.Application.Services.Android;
 
@@ -7,7 +8,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
 {
     [ApiController]
     [Route("api/stats")]
-    public class StatsController : ControllerBase
+    public class StatsController : BaseController
     {
         private readonly IAndroidDeviceService _androidService;
         private readonly IFileService _fileService;

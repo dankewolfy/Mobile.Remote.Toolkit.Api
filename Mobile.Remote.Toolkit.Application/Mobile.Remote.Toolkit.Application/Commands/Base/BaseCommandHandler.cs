@@ -2,8 +2,6 @@
 
 using Microsoft.Extensions.Logging;
 
-using Mobile.Remote.Toolkit.Application.Services.Android;
-
 namespace Mobile.Remote.Toolkit.Application.Commands.Base
 {
     public abstract class BaseCommandHandler<TRequest, TResponse> : IRequestHandler<TRequest, TResponse> where TRequest : IRequest<TResponse>

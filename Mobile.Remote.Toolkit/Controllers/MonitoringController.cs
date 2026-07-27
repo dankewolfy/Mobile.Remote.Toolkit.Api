@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using Mobile.Remote.Toolkit.Api.Controllers.Base;
 using Mobile.Remote.Toolkit.Application.Services;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 
@@ -7,7 +8,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
 {
     [ApiController]
     [Route("api/monitoring")]
-    public class MonitoringController : ControllerBase
+    public class MonitoringController : BaseController
     {
         private readonly IDeviceMonitoringService _monitoringService;
 

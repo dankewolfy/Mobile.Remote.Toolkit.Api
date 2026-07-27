@@ -1,20 +1,19 @@
-using MediatR;
+using Microsoft.Extensions.Logging;
 
+using Mobile.Remote.Toolkit.Application.Commands.Base;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 using Mobile.Remote.Toolkit.Application.Services.iOS;
 
 namespace Mobile.Remote.Toolkit.Application.Commands.iOS
 {
-    public sealed class ExecuteIOSActionCommandHandler : IRequestHandler<ExecuteIOSActionCommand, ActionResponse>
+    public sealed class ExecuteIOSActionCommandHandler : IOSBaseCommandHandler<ExecuteIOSActionCommand, ActionResponse>
     {
-        private readonly IIOSDeviceService _iosService;
-
-        public ExecuteIOSActionCommandHandler(IIOSDeviceService iosService)
+        public ExecuteIOSActionCommandHandler(IIOSDeviceService iosService, ILogger<ExecuteIOSActionCommandHandler> logger)
+            : base(iosService, logger)
         {
-            _iosService = iosService;
         }
 
-        public async Task<ActionResponse> Handle(ExecuteIOSActionCommand request, CancellationToken cancellationToken)
-            => await _iosService.ExecuteActionAsync(request.Udid, request.Action, null, request.Payload);
+        public override async Task<ActionResponse> Handle(ExecuteIOSActionCommand request, CancellationToken cancellationToken)
+            => await IOSDeviceService.ExecuteActionAsync(request.Udid, request.Action, null, request.Payload);
     }
 }

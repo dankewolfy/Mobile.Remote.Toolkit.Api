@@ -1,10 +1,12 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using Mobile.Remote.Toolkit.Api.Controllers.Base;
+
 namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
 {
     [ApiController]
     [Route("api/ios")]
-    public class IOSController : ControllerBase
+    public class IOSController : BaseController
     {
         [HttpGet("devices")]
         public ActionResult<object> GetDevices()

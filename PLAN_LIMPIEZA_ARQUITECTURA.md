@@ -87,8 +87,37 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   builder.Services.AddInfrastructure(builder.Configuration);`. Verificado: `dotnet build` sin
   errores y `dotnet run` levanta la API, detecta el mismo dispositivo Android real end-to-end y
   sigue mostrando "Monitoreo de dispositivos auto-iniciado."
-- ⬜ Todo lo demás (simetría Android/iOS, conectar el controller de iOS, preparar monitoreo
-  multiplataforma) sigue pendiente — ver fases 6 y 7 abajo.
+- ✅ **Fase 6 — Simetría estructural Android/iOS**: creados
+  `Application/Commands/Base/IOSBaseCommandHandler.cs` y
+  `Application/Queries/Base/IOSBaseQueryHandler.cs`, mismo patrón que
+  `AndroidBaseCommandHandler`/`AndroidBaseQueryHandler` (inyectan `IIOSDeviceService` +
+  `ILogger`/`IMediator` respectivamente). Migrados los 7 handlers de iOS
+  (`ExecuteIOSActionCommandHandler`, `StartIOSMirrorCommandHandler`,
+  `StopIOSMirrorCommandHandler`, `TakeIOSScreenshotCommandHandler`,
+  `GetIOSDeviceInfoQueryHandler`, `GetIOSDevicesQueryHandler`,
+  `GetIOSDeviceStatusQueryHandler`) para heredar de estas bases en vez de implementar
+  `IRequestHandler<>` directo — cada uno reemplazó su campo privado `_iosService` por el
+  miembro protegido heredado (`IOSDeviceService`/`IOSService`). Unificados bajo
+  `BaseController` los cuatro controllers que aún extendían `ControllerBase` directamente:
+  `FilesController`, `MonitoringController`, `StatsController` y `Controllers/iOS/iOSController.cs`
+  (clase `IOSController`, sin tocar su lógica interna — sigue devolviendo los stubs "iOS no
+  implementado aún", eso es la Fase 7) — ahora todos comparten `Mediator`/`Logger`/`ApiError`.
+  Aprovechado en `FilesController.OpenFolder`: el catch que devolvía `StatusCode(500, new {
+  success, message })` ahora usa `ApiError(...)`, igual que ya hacía `AndroidController.ExecuteAction`.
+  Limpieza menor: quitado el `using Mobile.Remote.Toolkit.Application.Services.Android;`
+  sobrante en el `BaseCommandHandler<>` genérico (no debe conocer Android). El cast
+  `(IRequest<ActionResponse>)request` en `AndroidController.ExecuteAdb` no era realmente
+  redundante — `ExecuteAdbCommandRequest` implementa tanto `IRequest` (vía `BaseRequest`) como
+  `IRequest<ActionResponse>`, y sin el cast `Mediator.Send(request)` resuelve de forma ambigua
+  al overload de request sin respuesta (falla en build con `CS0815: Cannot assign void to an
+  implicitly-typed variable`); lo único genuinamente redundante era el argumento de tipo
+  explícito `Send<ActionResponse>(...)`, ya inferible del cast — se dejó el cast y se quitó solo
+  ese argumento de tipo. Verificado: `dotnet build` sin errores; `dotnet run` (puerto alterno,
+  sin pisar una instancia ya corriendo en la máquina) levanta la API, detecta el mismo
+  dispositivo Android real end-to-end, sigue mostrando "Monitoreo de dispositivos
+  auto-iniciado.", y se probaron por HTTP `GET /api/ios/devices`, `GET /api/monitoring/status`
+  y `GET /api/Android/devices` — los tres responden 200 a través de la nueva base común.
+- ⬜ Fase 7 (conectar el pipeline de iOS + preparar monitoreo multiplataforma) sigue pendiente.
 
 ## Arquitectura objetivo
 

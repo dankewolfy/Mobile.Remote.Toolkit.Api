@@ -104,7 +104,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
         public async Task<ActionResult<ActionResponse>> ExecuteAdb([FromRoute] string serial, [FromBody] ExecuteAdbCommandRequest request)
         {
             request.Serial = serial;
-            ActionResponse response = await Mediator.Send<ActionResponse>((IRequest<ActionResponse>)request);
+            var response = await Mediator.Send((IRequest<ActionResponse>)request);
             return Ok(response);
         }
 

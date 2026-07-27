@@ -1,5 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
+using Mobile.Remote.Toolkit.Api.Controllers.Base;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 using Mobile.Remote.Toolkit.Application.Utils;
 
@@ -7,7 +8,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
 {
     [ApiController]
     [Route("api/files")]
-    public class FilesController : ControllerBase
+    public class FilesController : BaseController
     {
         private readonly IFileService _fileService;
 
@@ -113,7 +114,7 @@ namespace Mobile.Remote.Toolkit.Api.Controllers
             }
             catch (Exception ex)
             {
-                return StatusCode(500, new { success = false, message = ex.Message });
+                return ApiError("Error abriendo la carpeta de screenshots", ex.Message);
             }
         }
     }

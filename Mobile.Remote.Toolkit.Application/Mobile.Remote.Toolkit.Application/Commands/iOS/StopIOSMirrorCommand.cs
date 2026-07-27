@@ -1,5 +1,8 @@
 using MediatR;
 
+using Microsoft.Extensions.Logging;
+
+using Mobile.Remote.Toolkit.Application.Commands.Base;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 using Mobile.Remote.Toolkit.Application.Services.iOS;
 
@@ -9,17 +12,15 @@ namespace Mobile.Remote.Toolkit.Application.Commands.iOS
     {
         public string Udid { get; set; }
 
-        public class StopIOSMirrorCommandHandler : IRequestHandler<StopIOSMirrorCommand, ActionResponse>
+        public class StopIOSMirrorCommandHandler : IOSBaseCommandHandler<StopIOSMirrorCommand, ActionResponse>
         {
-            private readonly IIOSDeviceService _iosService;
-
-            public StopIOSMirrorCommandHandler(IIOSDeviceService iosService)
+            public StopIOSMirrorCommandHandler(IIOSDeviceService iosService, ILogger<StopIOSMirrorCommandHandler> logger)
+                : base(iosService, logger)
             {
-                _iosService = iosService;
             }
 
-            public async Task<ActionResponse> Handle(StopIOSMirrorCommand request, CancellationToken cancellationToken)
-                => await _iosService.StopMirrorAsync(request.Udid);
+            public override async Task<ActionResponse> Handle(StopIOSMirrorCommand request, CancellationToken cancellationToken)
+                => await IOSDeviceService.StopMirrorAsync(request.Udid);
         }
     }
 }
