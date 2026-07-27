@@ -64,8 +64,6 @@ builder.Services.AddScoped<IFileService, FileService>();
 builder.Services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
 builder.Services.AddSingleton<INotificationService, SignalRNotificationService>();
 
-//builder.Services.AddHostedService<DeviceMonitoringBackgroundService>();
-
 // MediatR
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
     typeof(GetAndroidDevicesQuery).Assembly,
@@ -139,7 +137,7 @@ app.Lifetime.ApplicationStarted.Register(() =>
 
         try
         {
-            await monitoringService.StartMonitoringAsync();
+            await monitoringService.StartMonitoringAsync(); 
             logger.LogInformation("Monitoreo de dispositivos auto-iniciado.");
         }
         catch (Exception ex)

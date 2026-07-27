@@ -140,14 +140,9 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.Android
             }
         }
 
-        /// <summary>
-        /// Verifica el estado de las herramientas necesarias
-        /// </summary>
-        /// <returns>Estado de las herramientas</returns>
-        [HttpGet("tools/status")]
-        public async Task<ActionResult<object>> GetToolsStatus()
-        {
-            return default;
-        }
+        // TODO: health-check de herramientas (adb/scrcpy) pendiente para cuando exista
+        // Mobile.Remote.Toolkit.Infrastructure, usando IProcessHelper.ExecuteCommandAsync
+        // ("adb", "version") / ("scrcpy", "--version"). Endpoint muerto eliminado en la
+        // limpieza de Fase 1 (ver PLAN_LIMPIEZA_ARQUITECTURA.md, ya removido).
     }
 }
