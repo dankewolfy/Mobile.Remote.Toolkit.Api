@@ -5,7 +5,7 @@ using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Application.Models.Responses.iOS;
 
-namespace Mobile.Remote.Toolkit.Application.Services.iOS
+namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 {
     public class IOSMirrorProcessRegistry
     {

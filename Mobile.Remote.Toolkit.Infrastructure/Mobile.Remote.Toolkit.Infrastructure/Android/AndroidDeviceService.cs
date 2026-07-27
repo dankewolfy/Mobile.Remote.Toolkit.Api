@@ -1,11 +1,13 @@
 ﻿using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
+using Mobile.Remote.Toolkit.Application.Services;
+using Mobile.Remote.Toolkit.Application.Services.Android;
 using Mobile.Remote.Toolkit.Application.Utils;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
 
-namespace Mobile.Remote.Toolkit.Application.Services.Android
+namespace Mobile.Remote.Toolkit.Infrastructure.Android
 {
     public class AndroidDeviceService : IAndroidDeviceService
     {

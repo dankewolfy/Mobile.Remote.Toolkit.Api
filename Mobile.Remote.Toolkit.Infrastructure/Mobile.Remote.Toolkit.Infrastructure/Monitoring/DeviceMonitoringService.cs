@@ -5,12 +5,13 @@ using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
 
+using Mobile.Remote.Toolkit.Application.Services;
 using Mobile.Remote.Toolkit.Application.Services.Android;
 using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
 using Mobile.Remote.Toolkit.Domain.Entities;
 using Mobile.Remote.Toolkit.Domain.Events;
 
-namespace Mobile.Remote.Toolkit.Application.Services
+namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
 {
     /// <summary>
     /// Monitorea dispositivos Android escuchando eventos USB del sistema operativo (WMI en Windows).

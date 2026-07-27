@@ -2,7 +2,9 @@
 using System.Runtime.InteropServices;
 using Microsoft.Extensions.Logging;
 
-namespace Mobile.Remote.Toolkit.Application.Utils
+using Mobile.Remote.Toolkit.Application.Utils;
+
+namespace Mobile.Remote.Toolkit.Infrastructure.Processes
 {
     public class ProcessHelper : IProcessHelper
     {

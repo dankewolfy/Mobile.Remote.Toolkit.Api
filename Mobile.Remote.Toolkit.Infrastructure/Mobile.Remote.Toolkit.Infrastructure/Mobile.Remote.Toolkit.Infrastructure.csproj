@@ -7,21 +7,15 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Folder Include="Commands\iOS\" />
-    <Folder Include="Models\Requests\iOS\" />
-    <Folder Include="Models\Responses\iOS\" />
-    <Folder Include="Queries\iOS\" />
-    <Folder Include="Utils\Android\" />
-    <Folder Include="Utils\iOS\" />
-  </ItemGroup>
-
-  <ItemGroup>
-	<PackageReference Include="MediatR" Version="11.3.0" />
     <PackageReference Include="Microsoft.Extensions.Configuration.Abstractions" Version="10.0.0" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.0" />
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.0" />
+    <PackageReference Include="System.Management" Version="8.0.0" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\Mobile.Remote.Toolkit.Application\Mobile.Remote.Toolkit.Application\Mobile.Remote.Toolkit.Application.csproj" />
     <ProjectReference Include="..\..\Mobile.Remote.Toolkit.Domain\Mobile.Remote.Toolkit.Domain\Mobile.Remote.Toolkit.Domain.csproj" />
   </ItemGroup>
+
 </Project>

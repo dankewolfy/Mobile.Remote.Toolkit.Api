@@ -1,11 +1,13 @@
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
+using Mobile.Remote.Toolkit.Application.Services;
+using Mobile.Remote.Toolkit.Application.Services.iOS;
 using Mobile.Remote.Toolkit.Application.Models.Responses;
 using Mobile.Remote.Toolkit.Application.Models.Responses.iOS;
 using Mobile.Remote.Toolkit.Application.Utils;
 
-namespace Mobile.Remote.Toolkit.Application.Services.iOS
+namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 {
     public class IOSDeviceService : IIOSDeviceService
     {

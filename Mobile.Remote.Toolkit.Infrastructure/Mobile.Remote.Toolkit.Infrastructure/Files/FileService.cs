@@ -1,4 +1,6 @@
-﻿namespace Mobile.Remote.Toolkit.Application.Utils
+﻿using Mobile.Remote.Toolkit.Application.Utils;
+
+namespace Mobile.Remote.Toolkit.Infrastructure.Files
 {
     public class FileService : IFileService
     {

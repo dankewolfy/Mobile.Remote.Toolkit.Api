@@ -9,6 +9,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mobile.Remote.Toolkit.Appli
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mobile.Remote.Toolkit.Domain", "Mobile.Remote.Toolkit.Domain\Mobile.Remote.Toolkit.Domain\Mobile.Remote.Toolkit.Domain.csproj", "{9BF8A78F-7F34-4D77-8493-8F820009AB95}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Mobile.Remote.Toolkit.Infrastructure", "Mobile.Remote.Toolkit.Infrastructure\Mobile.Remote.Toolkit.Infrastructure\Mobile.Remote.Toolkit.Infrastructure.csproj", "{63D11658-101A-4CD2-AA88-0F6CE132E4B5}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -27,6 +29,10 @@ Global
 		{9BF8A78F-7F34-4D77-8493-8F820009AB95}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{9BF8A78F-7F34-4D77-8493-8F820009AB95}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{9BF8A78F-7F34-4D77-8493-8F820009AB95}.Release|Any CPU.Build.0 = Release|Any CPU
+		{63D11658-101A-4CD2-AA88-0F6CE132E4B5}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{63D11658-101A-4CD2-AA88-0F6CE132E4B5}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{63D11658-101A-4CD2-AA88-0F6CE132E4B5}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{63D11658-101A-4CD2-AA88-0F6CE132E4B5}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

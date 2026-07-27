@@ -2,7 +2,9 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using Microsoft.Extensions.Logging;
 
-namespace Mobile.Remote.Toolkit.Application.Services.Android
+using Mobile.Remote.Toolkit.Application.Services;
+
+namespace Mobile.Remote.Toolkit.Infrastructure.Android
 {
     /// <summary>
     /// Singleton que mantiene el mapa serial → proceso scrcpy activo.

@@ -51,9 +51,28 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   (método privado `ToDomainDevice`). Se agregó `ProjectReference` de Application → Domain (no
   existía). Verificado: `Domain.csproj` sigue sin ningún `PackageReference`. Build de la solución
   sin errores.
-- ⬜ Todo lo demás (extracción de Infrastructure, composition root, simetría Android/iOS, conectar
-  el controller de iOS, preparar monitoreo multiplataforma) sigue pendiente — ver fases 4 a 7
-  abajo.
+- ✅ **Fase 4 — Separar puertos (Application) de adaptadores (Infrastructure)**: creado el
+  proyecto `Mobile.Remote.Toolkit.Infrastructure` (net10.0, `ProjectReference` a Application y
+  Domain). Movidos a Infrastructure: `AndroidDeviceService`/`MirrorProcessRegistry` →
+  `Infrastructure/Android/`, `IOSDeviceService`/`IOSMirrorProcessRegistry` → `Infrastructure/iOS/`,
+  `ProcessHelper` → `Infrastructure/Processes/`, `FileService` → `Infrastructure/Files/`,
+  `DeviceMonitoringService` → `Infrastructure/Monitoring/`, `LogNotificationService` →
+  `Infrastructure/Notifications/`. Cada clase movida cambió de namespace
+  (`Application.Services.*`/`Application.Utils` → `Infrastructure.*`) y ahora referencia sus
+  puertos vía `using` en vez de compartir namespace. Las interfaces/puertos y DTOs
+  (`IAndroidDeviceService`, `IIOSDeviceService`, `IProcessHelper`, `IFileService`,
+  `INotificationService`, `IDeviceMonitoringService`, `ProcessResult`, Requests/Responses)
+  se quedaron en Application, namespace sin cambios. `System.Management` se movió del
+  `.csproj` de Application al de Infrastructure (Application ya no referencia ningún paquete
+  atado a SO). `Mobile.Remote.Toolkit.sln` y `Mobile.Remote.Toolkit.Api.csproj` actualizados con
+  la referencia a Infrastructure; `Program.cs`/`SignalRNotificationService.cs` actualizados con
+  los nuevos `using`. Verificado: `dotnet build` sin errores y `dotnet run` levanta la API,
+  detecta un dispositivo Android real conectado end-to-end a través de la nueva capa de
+  Infrastructure, y sigue mostrando "Monitoreo de dispositivos auto-iniciado." `Domain.csproj`
+  confirmado sin ningún `PackageReference` tras el cambio.
+- ⬜ Todo lo demás (composition root dedicado con `AddApplication`/`AddInfrastructure`, simetría
+  Android/iOS, conectar el controller de iOS, preparar monitoreo multiplataforma) sigue
+  pendiente — ver fases 5 a 7 abajo.
 
 ## Arquitectura objetivo
 

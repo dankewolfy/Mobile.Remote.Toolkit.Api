@@ -7,6 +7,11 @@ using Mobile.Remote.Toolkit.Application.Services;
 using Mobile.Remote.Toolkit.Application.Services.Android;
 using Mobile.Remote.Toolkit.Application.Services.iOS;
 using Mobile.Remote.Toolkit.Application.Utils;
+using Mobile.Remote.Toolkit.Infrastructure.Android;
+using Mobile.Remote.Toolkit.Infrastructure.iOS;
+using Mobile.Remote.Toolkit.Infrastructure.Processes;
+using Mobile.Remote.Toolkit.Infrastructure.Files;
+using Mobile.Remote.Toolkit.Infrastructure.Monitoring;
 
 var builder = WebApplication.CreateBuilder(args);
 

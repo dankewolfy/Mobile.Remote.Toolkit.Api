@@ -1,8 +1,9 @@
 ﻿using Microsoft.Extensions.Logging;
 
 using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Application.Services;
 
-namespace Mobile.Remote.Toolkit.Application.Services
+namespace Mobile.Remote.Toolkit.Infrastructure.Notifications
 {
     public class LogNotificationService : INotificationService
     {
