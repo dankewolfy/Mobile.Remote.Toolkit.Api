@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 
-using Mobile.Remote.Toolkit.Business.Utils;
-using Mobile.Remote.Toolkit.Business.Services.Android;
+using Mobile.Remote.Toolkit.Application.Utils;
+using Mobile.Remote.Toolkit.Application.Services.Android;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers
 {

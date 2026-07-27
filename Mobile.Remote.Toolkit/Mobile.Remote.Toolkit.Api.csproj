@@ -20,7 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Mobile.Remote.Toolkit.Business\Mobile.Remote.Toolkit.Business\Mobile.Remote.Toolkit.Business.csproj" />
+    <ProjectReference Include="..\Mobile.Remote.Toolkit.Application\Mobile.Remote.Toolkit.Application\Mobile.Remote.Toolkit.Application.csproj" />
   </ItemGroup>
 
   <ItemGroup>

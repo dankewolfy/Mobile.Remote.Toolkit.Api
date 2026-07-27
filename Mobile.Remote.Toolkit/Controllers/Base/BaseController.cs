@@ -3,7 +3,7 @@
 using MediatR;
 
 using Microsoft.AspNetCore.Mvc;
-using Mobile.Remote.Toolkit.Business.Models.Responses;
+using Mobile.Remote.Toolkit.Application.Models.Responses;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers.Base
 {

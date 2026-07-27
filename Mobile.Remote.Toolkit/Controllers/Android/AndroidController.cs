@@ -2,11 +2,11 @@
 using Microsoft.AspNetCore.Mvc;
 
 using Mobile.Remote.Toolkit.Api.Controllers.Base;
-using Mobile.Remote.Toolkit.Business.Commands.Android;
-using Mobile.Remote.Toolkit.Business.Models.Requests.Android;
-using Mobile.Remote.Toolkit.Business.Models.Responses;
-using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
-using Mobile.Remote.Toolkit.Business.Queries.Android;
+using Mobile.Remote.Toolkit.Application.Commands.Android;
+using Mobile.Remote.Toolkit.Application.Models.Requests.Android;
+using Mobile.Remote.Toolkit.Application.Models.Responses;
+using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Application.Queries.Android;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers.Android
 {

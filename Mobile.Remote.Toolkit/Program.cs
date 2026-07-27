@@ -1,12 +1,12 @@
 using MediatR;
 using Mobile.Remote.Toolkit.Api.Hubs;
 using Mobile.Remote.Toolkit.Api.Services;
-using Mobile.Remote.Toolkit.Business.Commands.Android;
-using Mobile.Remote.Toolkit.Business.Queries.Android;
-using Mobile.Remote.Toolkit.Business.Services;
-using Mobile.Remote.Toolkit.Business.Services.Android;
-using Mobile.Remote.Toolkit.Business.Services.iOS;
-using Mobile.Remote.Toolkit.Business.Utils;
+using Mobile.Remote.Toolkit.Application.Commands.Android;
+using Mobile.Remote.Toolkit.Application.Queries.Android;
+using Mobile.Remote.Toolkit.Application.Services;
+using Mobile.Remote.Toolkit.Application.Services.Android;
+using Mobile.Remote.Toolkit.Application.Services.iOS;
+using Mobile.Remote.Toolkit.Application.Utils;
 
 var builder = WebApplication.CreateBuilder(args);
 

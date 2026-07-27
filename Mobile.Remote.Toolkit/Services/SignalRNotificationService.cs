@@ -1,8 +1,8 @@
 ﻿using Microsoft.AspNetCore.SignalR;
 
 using Mobile.Remote.Toolkit.Api.Hubs;
-using Mobile.Remote.Toolkit.Business.Services;
-using Mobile.Remote.Toolkit.Business.Models.Responses.Android;
+using Mobile.Remote.Toolkit.Application.Services;
+using Mobile.Remote.Toolkit.Application.Models.Responses.Android;
 
 namespace Mobile.Remote.Toolkit.Api.Services
 {
