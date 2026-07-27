@@ -208,6 +208,55 @@ Este es el cambio estructural central del plan.
 18. Confirmar (sin tocar) que `ProcessHelper` ya resuelve adb/scrcpy en Windows/Linux/macOS
     correctamente.
 
+### Anexo Fase 7 — Investigación mirror/control real de iOS (2026-07-27)
+
+El punto 16 marcaba el mirror/control de iOS como bloqueo fuera de alcance sin más detalle.
+Se investigó el espacio de soluciones (repos de referencia del usuario + búsqueda propia) para
+dejar una base concreta de cara a cuando se aborde. Decisión clave: **mirror y control son dos
+piezas independientes, no un solo "IOSMirrorService"** — cada una es su propio puerto/adaptador
+en Infrastructure, igual que ya lo son `IAndroidDeviceService`/mirror de Android, y pueden
+resolverse con proyectos externos distintos sin acoplarse entre sí.
+
+**Mirror (video, sin Mac de por medio) — dos candidatos viables:**
+- [`UxPlay`](https://github.com/FDH2/UxPlay) (C/C++, GPLv3, compila nativo en Windows vía
+  MSYS2/MinGW): receptor AirPlay real (WiFi), mismo patrón de invocación que scrcpy — binario
+  externo spawneado por un registry análogo a `MirrorProcessRegistry`.
+- `pymobiledevice3` / [`IosScreenCaptureTool`](https://github.com/BieleckiLtd/IosScreenCaptureTool)
+  (MIT, .NET): captura de pantalla por cable USB usando el mismo servicio DVT/CoreMediaIO que usa
+  QuickTime en Mac para grabar el iPhone como cámara — no requiere WiFi ni AirPlay, requiere
+  Developer Mode en el dispositivo + drivers de Apple Mobile Device en el PC.
+
+**Control (touch real, sin Mac permanente) — candidato recomendado:**
+- [`go-ios`](https://github.com/danielpaulus/go-ios) (Go, MIT, binario standalone) +
+  `WebDriverAgent`: `go-ios` maneja pairing/devmode/instalación de WDA en el dispositivo desde
+  Windows sin ningún macOS en el loop; una vez WDA corre en el iPhone se expone como servidor
+  HTTP reenviado por USB (`iproxy`), y se controla con un `HttpClient` normal contra su API REST
+  — taps/swipes reales vía XCUITest (el framework de automatización oficial de Apple), no
+  emulación de puntero. Única atadura a macOS: firmar el `.ipa` de WDA con Xcode, tarea periódica
+  (cada 7 días con Apple ID gratis, cada año con cuenta de desarrollador pagada) y no una máquina
+  Mac corriendo en producción.
+
+**Opciones evaluadas y descartadas** (con el motivo, para no re-investigarlas):
+- `1PhoneMirror`: sí mirrorea iOS en Windows sin Mac (vía AirPlay), pero es una app GUI completa
+  sin hooks de automatización/CLI confirmados — no es una librería para embeber.
+- `ios_video_stream`: muerto desde 2020, dependía de un componente on-device que requería
+  jailbreak y que Apple bloqueó en updates posteriores.
+- `mirroir-mcp` y la propuesta discutida en `pymobiledevice3#1216`: ambos asumen macOS 15+ con
+  "iPhone Mirroring" nativo ya corriendo — no aplican a un host Windows sin Mac.
+- `Maestro` (mobile-dev-inc): su driver iOS solo soporta simuladores, no dispositivos físicos
+  (confirmado en su propio repo, sin plan de agregarlo).
+- `idb`/`idb_companion` (Facebook): el companion que habla con el dispositivo requiere macOS
+  corriendo de forma permanente (usa frameworks privados de Apple), no es un requisito de una
+  sola vez como con WDA.
+- Bluetooth HID + AssistiveTouch (técnica de ApowerMirror): viable en teoría (el PC se anuncia
+  como mouse Bluetooth y AssistiveTouch traduce los eventos en toques), pero sin ninguna base
+  OSS madura para adoptar en Windows, requiere activar Accesibilidad a mano en el dispositivo, y
+  da control simulado (puntero) en vez de eventos táctiles reales — inferior a la ruta
+  `go-ios`/WDA en casi todo.
+
+Esto sigue sin ser parte de esta limpieza (fuera de alcance por diseño, ver punto 16) — se deja
+documentado como insumo para cuando se decida encarar el mirror/control real de iOS.
+
 ## Fase 8 (opcional, requiere decisión aparte) — Contrato HTTP de errores
 
 `BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
