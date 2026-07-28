@@ -392,6 +392,14 @@ resolverse con proyectos externos distintos sin acoplarse entre sí.
 Esto sigue sin ser parte de esta limpieza (fuera de alcance por diseño, ver punto 16) — se deja
 documentado como insumo para cuando se decida encarar el mirror/control real de iOS.
 
+## Fase 8 (opcional, requiere decisión aparte) — Contrato HTTP de errores
+
+`BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
+para errores reales. La mejor práctica REST sería devolver códigos de estado correctos (400/404/
+409/500) manteniendo el cuerpo `ActionResponse`. No se incluye como obligatorio en este plan
+porque cambia el contrato que el front Vue/Electron ya consume — se deja marcado para decidir
+aparte, coordinando el cambio con el cliente.
+
 ## Fase 9 — Mirror real de iOS vía UxPlay (video, sin Mac)
 
 Objetivo: que `POST /api/ios/devices/{udid}/mirror/start` levante video real de AirPlay, no un
@@ -453,14 +461,6 @@ mirror y las queries de info/estado.
     `StartMirrorCommand`/`ExecuteAndroidActionCommand` para no introducir un estilo distinto.
 31. Actualizar `GetIOSDeviceStatusQuery`/`GetDeviceStatusAsync` para que `capabilities.touch` pase
     a `true` una vez el control esté realmente disponible para ese dispositivo.
-
-## Fase 8 (opcional, requiere decisión aparte) — Contrato HTTP de errores
-
-`BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
-para errores reales. La mejor práctica REST sería devolver códigos de estado correctos (400/404/
-409/500) manteniendo el cuerpo `ActionResponse`. No se incluye como obligatorio en este plan
-porque cambia el contrato que el front Vue/Electron ya consume — se deja marcado para decidir
-aparte, coordinando el cambio con el cliente.
 
 ## Verificación
 
