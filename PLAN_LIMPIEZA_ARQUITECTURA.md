@@ -70,7 +70,7 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   detecta un dispositivo Android real conectado end-to-end a través de la nueva capa de
   Infrastructure, y sigue mostrando "Monitoreo de dispositivos auto-iniciado." `Domain.csproj`
   confirmado sin ningún `PackageReference` tras el cambio.
-- ✅ **Fase 5 — Composition root limpio** (pendiente de commit): agregado
+- ✅ **Fase 5 — Composition root limpio** (commit `d9066d3`): agregado
   `Mobile.Remote.Toolkit.Application/DependencyInjection.cs` con `AddApplication(this
   IServiceCollection services)`, que registra MediatR escaneando únicamente el assembly de
   Application (antes `Program.cs` escaneaba también su propio assembly sin necesidad real: no
@@ -87,7 +87,7 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   builder.Services.AddInfrastructure(builder.Configuration);`. Verificado: `dotnet build` sin
   errores y `dotnet run` levanta la API, detecta el mismo dispositivo Android real end-to-end y
   sigue mostrando "Monitoreo de dispositivos auto-iniciado."
-- ✅ **Fase 6 — Simetría estructural Android/iOS**: creados
+- ✅ **Fase 6 — Simetría estructural Android/iOS** (commit `721323f`): creados
   `Application/Commands/Base/IOSBaseCommandHandler.cs` y
   `Application/Queries/Base/IOSBaseQueryHandler.cs`, mismo patrón que
   `AndroidBaseCommandHandler`/`AndroidBaseQueryHandler` (inyectan `IIOSDeviceService` +
@@ -117,7 +117,7 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   dispositivo Android real end-to-end, sigue mostrando "Monitoreo de dispositivos
   auto-iniciado.", y se probaron por HTTP `GET /api/ios/devices`, `GET /api/monitoring/status`
   y `GET /api/Android/devices` — los tres responden 200 a través de la nueva base común.
-- ✅ **Fase 7 — Conectar el pipeline de iOS + preparar monitoreo multiplataforma**:
+- ✅ **Fase 7 — Conectar el pipeline de iOS + preparar monitoreo multiplataforma** (commit `865b430`):
   reescrito `Controllers/iOS/iOSController.cs` para inyectar `IMediator` (vía `BaseController`) y
   despachar los 7 commands/queries ya construidos en Application
   (`GetIOSDevicesQuery`, `GetIOSDeviceInfoQuery`, `GetIOSDeviceStatusQuery`, `StartIOSMirrorCommand`,
@@ -218,6 +218,12 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   mapean explícitamente `"adb"`/`"scrcpy"` a rutas completas bajo `Tools/Android/` según
   `RuntimeInformation.IsOSPlatform` (Windows: `adb.exe`/`scrcpy.exe`; Linux/macOS: `adb`/`scrcpy` sin
   extensión) — confirmado correcto para los tres SO, no se modificó nada de esa clase.
+- ⬜ **Fase 9 — Mirror real de iOS vía UxPlay** (pendiente): compilar/instalar UxPlay y probarlo
+  manualmente antes de integrarlo; no requiere tocar código de Application (`StartIOSMirrorCommand`
+  ya es agnóstico de herramienta). Ver detalle más abajo.
+- ⬜ **Fase 10 — Control táctil real de iOS vía go-ios + WebDriverAgent** (pendiente, bloqueada en
+  parte por necesitar Xcode/macOS para firmar WDA): hoy no existe ningún código de control, solo el
+  stub `capabilities.touch = false`. Ver detalle más abajo.
 
 ## Arquitectura objetivo
 
@@ -386,6 +392,68 @@ resolverse con proyectos externos distintos sin acoplarse entre sí.
 Esto sigue sin ser parte de esta limpieza (fuera de alcance por diseño, ver punto 16) — se deja
 documentado como insumo para cuando se decida encarar el mirror/control real de iOS.
 
+## Fase 9 — Mirror real de iOS vía UxPlay (video, sin Mac)
+
+Objetivo: que `POST /api/ios/devices/{udid}/mirror/start` levante video real de AirPlay, no un
+error de configuración. **No se escribe lógica de negocio nueva** — `StartIOSMirrorCommand` /
+`IOSDeviceService.StartMirrorAsync` ya son agnósticos de herramienta (spawnean cualquier
+ejecutable configurado, ver `Mobile.Remote.Toolkit.Infrastructure/iOS/IOSDeviceService.cs:140-223`)
+desde la Fase 7; el trabajo de esta fase es 100% obtener el binario externo, probarlo manualmente,
+y configurarlo — igual patrón que ya existe para scrcpy con Android.
+
+19. Compilar [`UxPlay`](https://github.com/FDH2/UxPlay) para Windows (su propio build doc indica
+    MSYS2/MinGW) o conseguir un release ya compilado si el proyecto publica uno para Windows.
+20. Vendorizar el resultado en `Tools/iOS/mirror/uxplay/` (mismo patrón que
+    `Tools/Android/scrcpy/`) — el `.csproj` de Api ya copia todo `Tools/**/*` al output, no hace
+    falta tocarlo (confirmado en Fase 7 con `Tools/iOS/libimobiledevice/`).
+21. **Probar manualmente, fuera de esta API**, que el iPad puede iniciar "Screen Mirroring"/AirPlay
+    hacia esta PC en la misma red WiFi y que UxPlay efectivamente muestra video — recién ahí tiene
+    sentido integrarlo al backend. Si esto no funciona a mano, no tiene caso wirearlo.
+22. Configurar `appsettings.json` (`IOS:Mirror:Executable`, `IOS:Mirror:Mode=airplay`,
+    `IOS:Mirror:Arguments`) apuntando al binario vendorizado, para que
+    `POST mirror/start` funcione sin tener que mandar `options.executable` en cada request.
+23. Verificar por HTTP: `POST /api/ios/devices/{udid}/mirror/start` sin body levanta UxPlay
+    (`IOSMirrorProcessRegistry` lo registra, igual que ya hace con Android); `POST mirror/stop` lo
+    mata correctamente; `GET .../status` refleja `mirror_active: true` con el PID real mientras
+    corre.
+24. Nota para una fase de cliente (fuera de este repo de API): UxPlay abre una ventana nativa igual
+    que scrcpy — el Electron actual ya detecta la ventana de mirror de Android por título; si se
+    quiere el mismo comportamiento para iOS habrá que enseñarle a reconocer también la ventana de
+    UxPlay. Anotado como pendiente del lado del cliente, no se resuelve en este repo.
+
+## Fase 10 — Control táctil real de iOS vía go-ios + WebDriverAgent
+
+Objetivo: reemplazar el stub actual (`capabilities.touch` siempre `false`,
+ver `IOSDeviceService.GetDeviceStatusAsync`) por control táctil real. A diferencia de la Fase 9,
+esta sí requiere escribir código nuevo — hoy no existe ningún puerto/adapter de control, solo el
+mirror y las queries de info/estado.
+
+25. Instalar el binario standalone de [`go-ios`](https://github.com/danielpaulus/go-ios) en
+    `Tools/iOS/go-ios/` (mismo patrón de vendorizado que las fases anteriores).
+26. Con `go-ios`, parear el dispositivo, activar Developer Mode si hace falta, e instalar
+    `WebDriverAgent` en el iPad — documentar acá los comandos exactos una vez probados a mano,
+    antes de intentar automatizarlos desde la API.
+27. **Bloqueo real a resolver antes de seguir**: firmar el `.ipa` de `WebDriverAgent` requiere
+    Xcode → una Mac (o un servicio de firma en la nube) en el loop, aunque sea de forma periódica
+    (cada 7 días con Apple ID gratis, cada año con cuenta paga) y no una máquina corriendo en
+    producción. Sin resolver esto, el resto de la fase no se puede probar de punta a punta —
+    confirmar acceso a una Mac (propia, prestada, o un servicio como MacStadium/Xcode Cloud) antes
+    de avanzar con los puntos 28-30.
+28. Una vez WDA corre en el dispositivo, exponerlo por USB con `iproxy` (el binario ya está
+    vendorizado en `Tools/iOS/libimobiledevice/` desde la Fase 7 — confirmar si alcanza con ese o
+    hace falta uno vendorizado aparte junto a `go-ios`).
+29. Nuevo puerto en Application: `IIOSControlService` (a definir si conviene separado de
+    `IIOSDeviceService` o una extensión — evaluar en el momento, replicando la separación
+    mirror/control ya decidida en el Anexo de la Fase 7) con métodos tipo `TapAsync(udid, x, y)` /
+    `SwipeAsync(udid, from, to)`. Implementación en Infrastructure hablando HTTP contra la API REST
+    de WDA (XCUITest) — no emulación de puntero.
+30. Decidir si esto se expone reusando `ExecuteIOSActionCommand` (ya tiene un switch por `action:
+    "tap"/"swipe"` preparado en `IOSDeviceService.ExecuteActionAsync`, hoy cae al `default` "no
+    soportada todavía") o con commands nuevos dedicados — replicar el patrón que ya use
+    `StartMirrorCommand`/`ExecuteAndroidActionCommand` para no introducir un estilo distinto.
+31. Actualizar `GetIOSDeviceStatusQuery`/`GetDeviceStatusAsync` para que `capabilities.touch` pase
+    a `true` una vez el control esté realmente disponible para ese dispositivo.
+
 ## Fase 8 (opcional, requiere decisión aparte) — Contrato HTTP de errores
 
 `BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
@@ -409,3 +477,9 @@ aparte, coordinando el cambio con el cliente.
     `ActionResponse`/error controlado, no crashear).
   - Log de arranque sigue mostrando "Monitoreo de dispositivos auto-iniciado."
 - Confirmar que `Domain.csproj` sigue sin ningún `PackageReference` al terminar el plan.
+- **Fase 9**: `mirror/start` contra un iPad real conectado (o en la misma WiFi para AirPlay)
+  levanta video real vía UxPlay, no el error de configuración actual; `mirror/stop` lo corta;
+  `GET .../status` refleja `mirror_active`/PID mientras corre.
+- **Fase 10**: un `tap`/`swipe` real vía `ExecuteIOSActionCommand` (o el command dedicado que se
+  elija) mueve algo en la pantalla del dispositivo; `capabilities.touch` pasa a `true` solo cuando
+  WDA está efectivamente corriendo para ese udid, no de forma global.
