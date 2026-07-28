@@ -1,6 +1,4 @@
 ﻿using System.Collections.Concurrent;
-using System.Management;
-using System.Runtime.InteropServices;
 
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.DependencyInjection;
@@ -14,19 +12,16 @@ using Mobile.Remote.Toolkit.Domain.Events;
 namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
 {
     /// <summary>
-    /// Monitorea dispositivos Android escuchando eventos USB del sistema operativo (WMI en Windows).
-    /// Solo ejecuta "adb devices" cuando el SO notifica un cambio de hardware — nunca en ciclo continuo.
+    /// Monitorea dispositivos Android escuchando eventos USB del sistema operativo (vía IUsbHardwareWatcher).
+    /// Solo ejecuta "adb devices" cuando el watcher notifica un cambio de hardware — nunca en ciclo continuo.
     /// </summary>
     public class DeviceMonitoringService : IDeviceMonitoringService
     {
         private readonly IServiceProvider _serviceProvider;
+        private readonly IUsbHardwareWatcher _usbWatcher;
         private readonly ILogger<DeviceMonitoringService> _logger;
 
         private readonly ConcurrentDictionary<string, AndroidDeviceResponse> _lastKnownDevices = new();
-
-        // WMI watchers (solo Windows)
-        private ManagementEventWatcher? _connectWatcher;
-        private ManagementEventWatcher? _disconnectWatcher;
 
         // Semáforo para evitar ejecuciones solapadas si llegan dos eventos casi simultáneos
         private readonly SemaphoreSlim _updateLock = new(1, 1);
@@ -37,9 +32,13 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
         public event EventHandler<DeviceEventArgs>? DeviceDisconnected;
         public event EventHandler<DeviceStatusChangedEventArgs>? DeviceStatusChanged;
 
-        public DeviceMonitoringService(IServiceProvider serviceProvider, ILogger<DeviceMonitoringService> logger)
+        public DeviceMonitoringService(
+            IServiceProvider serviceProvider,
+            IUsbHardwareWatcher usbWatcher,
+            ILogger<DeviceMonitoringService> logger)
         {
             _serviceProvider = serviceProvider;
+            _usbWatcher = usbWatcher;
             _logger = logger;
         }
 
@@ -52,15 +51,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
             // Snapshot inicial: saber qué está conectado ahora mismo
             await RefreshDeviceListAsync();
 
-            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
-            {
-                StartWmiWatchers();
-            }
-            else
-            {
-                _logger.LogWarning("Monitoreo USB basado en eventos solo disponible en Windows. " +
-                                   "En otros OS usa la opción de refresco manual.");
-            }
+            _usbWatcher.Start(RefreshDeviceListAsync);
 
             IsMonitoring = true;
         }
@@ -70,59 +61,10 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
             if (!IsMonitoring) return Task.CompletedTask;
 
             _logger.LogInformation("Deteniendo monitoreo de dispositivos Android");
-            StopWmiWatchers();
+            _usbWatcher.Stop();
             _lastKnownDevices.Clear();
             IsMonitoring = false;
             return Task.CompletedTask;
-        }
-
-        // ── WMI ────────────────────────────────────────────────────────────────
-
-        private void StartWmiWatchers()
-        {
-            try
-            {
-                // Win32_DeviceChangeEvent: EventType 2 = device arrived, 3 = device removed
-                var query = new WqlEventQuery(
-                    "SELECT * FROM Win32_DeviceChangeEvent WHERE EventType = 2 OR EventType = 3");
-
-                _connectWatcher = new ManagementEventWatcher(query);
-                _connectWatcher.EventArrived += OnUsbHardwareChanged;
-                _connectWatcher.Start();
-
-                // Un solo watcher es suficiente; usamos el mismo handler para ambos tipos
-                _logger.LogInformation("WMI USB watcher iniciado");
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error iniciando WMI watcher; el monitoreo USB no estará activo");
-            }
-        }
-
-        private void StopWmiWatchers()
-        {
-            try { _connectWatcher?.Stop(); _connectWatcher?.Dispose(); } catch { }
-            try { _disconnectWatcher?.Stop(); _disconnectWatcher?.Dispose(); } catch { }
-            _connectWatcher = null;
-            _disconnectWatcher = null;
-        }
-
-        /// <summary>
-        /// Llamado por WMI cuando algún dispositivo USB se conecta o desconecta.
-        /// Ejecuta adb devices UNA SOLA VEZ para ver si el cambio afecta a Android.
-        /// </summary>
-        private void OnUsbHardwareChanged(object sender, EventArrivedEventArgs e)
-        {
-            var eventType = e.NewEvent.Properties["EventType"]?.Value;
-            _logger.LogDebug($"Evento USB del sistema (EventType={eventType}); consultando adb...");
-
-            // Ejecutar de forma asíncrona sin bloquear el thread de WMI
-            _ = Task.Run(async () =>
-            {
-                // Esperar brevemente para dejar que el OS registre el dispositivo con ADB
-                await Task.Delay(1200);
-                await RefreshDeviceListAsync();
-            });
         }
 
         // ── Lógica de comparación ──────────────────────────────────────────────
@@ -185,7 +127,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Monitoring
 
         public void Dispose()
         {
-            StopWmiWatchers();
+            _usbWatcher.Dispose();
             _updateLock.Dispose();
         }
 

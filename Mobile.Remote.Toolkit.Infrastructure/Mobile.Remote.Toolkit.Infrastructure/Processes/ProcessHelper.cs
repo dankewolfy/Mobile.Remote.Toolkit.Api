@@ -12,18 +12,29 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
         private readonly string _toolsPath;
         private readonly string _adbPath;
         private readonly string _scrcpyPath;
+        private readonly string? _ideviceIdPath;
+        private readonly string? _ideviceInfoPath;
+        private readonly string? _idevicescreenshotPath;
 
         public ProcessHelper(ILogger<ProcessHelper> logger)
         {
             _logger = logger;
-            
+
             var baseDirectory = AppDomain.CurrentDomain.BaseDirectory;
             _toolsPath = Path.Combine(baseDirectory, "Tools");
-            
+
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {
                 _adbPath = Path.Combine(_toolsPath, "Android", "adb", "adb.exe");
                 _scrcpyPath = Path.Combine(_toolsPath, "Android", "scrcpy", "scrcpy.exe");
+
+                // Binarios de libimobiledevice para Windows (extraídos del pack Microsoft.iOS.Windows.Sdk
+                // de .NET, no hay build vendorizado equivalente para Linux/macOS todavía — ahí se sigue
+                // dependiendo de que estén instalados vía el gestor de paquetes del sistema).
+                var libimobiledevicePath = Path.Combine(_toolsPath, "iOS", "libimobiledevice");
+                _ideviceIdPath = Path.Combine(libimobiledevicePath, "idevice_id.exe");
+                _ideviceInfoPath = Path.Combine(libimobiledevicePath, "ideviceinfo.exe");
+                _idevicescreenshotPath = Path.Combine(libimobiledevicePath, "idevicescreenshot.exe");
             }
             else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
             {
@@ -55,13 +66,18 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
                 {
                     "adb" => _adbPath,
                     "scrcpy" => _scrcpyPath,
+                    "idevice_id" => _ideviceIdPath ?? fileName,
+                    "ideviceinfo" => _ideviceInfoPath ?? fileName,
+                    "idevicescreenshot" => _idevicescreenshotPath ?? fileName,
                     _ => fileName
                 };
 
                 _logger.LogInformation($"Ejecutando: {actualFileName} {arguments}");
 
-                // Verificar que el archivo existe
-                if (!File.Exists(actualFileName) && fileName.ToLower() is "adb" or "scrcpy")
+                // Solo validamos existencia cuando resolvimos a una ruta vendorizada conocida
+                // (p.ej. sin build vendorizado en este SO, o un comando arbitrario) dejamos que
+                // el SO busque en PATH y que Process.Start falle naturalmente si no lo encuentra.
+                if (actualFileName != fileName && !File.Exists(actualFileName))
                 {
                     _logger.LogError($"Herramienta no encontrada: {actualFileName}");
                     return new ProcessResult

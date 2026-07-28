@@ -1,6 +1,11 @@
-﻿using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc;
 
 using Mobile.Remote.Toolkit.Api.Controllers.Base;
+using Mobile.Remote.Toolkit.Application.Commands.iOS;
+using Mobile.Remote.Toolkit.Application.Models.Requests.iOS;
+using Mobile.Remote.Toolkit.Application.Models.Responses;
+using Mobile.Remote.Toolkit.Application.Models.Responses.iOS;
+using Mobile.Remote.Toolkit.Application.Queries.iOS;
 
 namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
 {
@@ -9,39 +14,72 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
     public class IOSController : BaseController
     {
         [HttpGet("devices")]
-        public ActionResult<object> GetDevices()
+        public async Task<ActionResult<List<IOSDeviceResponse>>> GetDevices([FromQuery] bool? activeOnly)
         {
-            return Ok(new { success = true, devices = new List<object>() });
+            var query = new GetIOSDevicesQuery { ActiveOnly = activeOnly };
+            var result = await Mediator.Send(query);
+            return Ok(result);
         }
 
         [HttpGet("devices/{udid}/info")]
-        public ActionResult<object> GetDeviceInfo(string udid)
+        public async Task<ActionResult<IOSDeviceResponse>> GetDeviceInfo(string udid)
         {
-            return Ok(new { success = false, error = "iOS no implementado aún" });
+            var query = new GetIOSDeviceInfoQuery { Udid = udid };
+            var result = await Mediator.Send(query);
+            return Ok(result);
+        }
+
+        [HttpGet("devices/{udid}/status")]
+        public async Task<ActionResult<Dictionary<string, object>>> GetDeviceStatus(string udid)
+        {
+            var query = new GetIOSDeviceStatusQuery { Udid = udid };
+            var result = await Mediator.Send(query);
+            return Ok(result);
         }
 
         [HttpPost("devices/{udid}/mirror/start")]
-        public ActionResult<object> StartMirror(string udid)
+        public async Task<ActionResult<ActionResponse>> StartMirror(
+            string udid,
+            [FromBody] IOSStartMirrorRequest request = null)
         {
-            return Ok(new { success = false, error = "iOS no implementado aún" });
+            var command = new StartIOSMirrorCommand
+            {
+                Udid = udid,
+                Options = request?.Options ?? new Dictionary<string, object>()
+            };
+
+            var result = await Mediator.Send(command);
+            return Ok(result);
         }
 
         [HttpPost("devices/{udid}/mirror/stop")]
-        public ActionResult<object> StopMirror(string udid)
+        public async Task<ActionResult<ActionResponse>> StopMirror(string udid)
         {
-            return Ok(new { success = false, error = "iOS no implementado aún" });
+            var command = new StopIOSMirrorCommand { Udid = udid };
+            var result = await Mediator.Send(command);
+            return Ok(result);
         }
 
         [HttpPost("devices/{udid}/action")]
-        public ActionResult<object> ExecuteAction(string udid)
+        public async Task<ActionResult<ActionResponse>> ExecuteAction(string udid, [FromBody] IOSActionRequest request)
         {
-            return Ok(new { success = false, error = "iOS no implementado aún" });
+            var command = new ExecuteIOSActionCommand
+            {
+                Udid = udid,
+                Action = request.Action,
+                Payload = request.Payload
+            };
+
+            var result = await Mediator.Send(command);
+            return Ok(result);
         }
 
         [HttpGet("devices/{udid}/screenshot")]
-        public ActionResult TakeScreenshot(string udid)
+        public async Task<ActionResult<ActionResponse>> TakeScreenshot(string udid, [FromQuery] string filename = null)
         {
-            return BadRequest(new { success = false, error = "iOS no implementado aún" });
+            var command = new TakeIOSScreenshotCommand { Udid = udid, Filename = filename };
+            var result = await Mediator.Send(command);
+            return Ok(result);
         }
 
         [HttpGet("mirror/sessions")]

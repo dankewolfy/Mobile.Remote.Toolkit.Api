@@ -117,7 +117,107 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   dispositivo Android real end-to-end, sigue mostrando "Monitoreo de dispositivos
   auto-iniciado.", y se probaron por HTTP `GET /api/ios/devices`, `GET /api/monitoring/status`
   y `GET /api/Android/devices` — los tres responden 200 a través de la nueva base común.
-- ⬜ Fase 7 (conectar el pipeline de iOS + preparar monitoreo multiplataforma) sigue pendiente.
+- ✅ **Fase 7 — Conectar el pipeline de iOS + preparar monitoreo multiplataforma**:
+  reescrito `Controllers/iOS/iOSController.cs` para inyectar `IMediator` (vía `BaseController`) y
+  despachar los 7 commands/queries ya construidos en Application
+  (`GetIOSDevicesQuery`, `GetIOSDeviceInfoQuery`, `GetIOSDeviceStatusQuery`, `StartIOSMirrorCommand`,
+  `StopIOSMirrorCommand`, `TakeIOSScreenshotCommand`, `ExecuteIOSActionCommand`), replicando el
+  patrón de `AndroidController` — cada endpoint arma su command/query con el `udid` de ruta y el
+  cuerpo recibido, y devuelve el resultado de `Mediator.Send(...)` en vez del hardcode "iOS no
+  implementado aún". Se agregó el endpoint `GET devices/{udid}/status` (no existía antes en
+  `iOSController`) para exponer `GetIOSDeviceStatusQuery`, tal como pide el punto 15 del plan —
+  espejo exacto de `AndroidController.GetDeviceStatus`. El endpoint `GET mirror/sessions` se dejó
+  sin tocar (stub `{ success: true, sessions: [] }`): no está entre los 7 commands/queries que el
+  plan pide cerrar, y aunque `IIOSDeviceService.GetMirrorSessionsAsync()` ya existe, envolverlo
+  hubiera requerido crear una Query nueva — eso es "negocio nuevo", fuera del alcance explícito de
+  este punto ("no se escribe negocio nuevo, solo se cierra el circuito").
+  Bug real encontrado al probar por HTTP (no al leer el código): `IOSActionRequest.Udid` era
+  `string` no-nullable: `[ApiController]` de ASP.NET valida implícitamente como requerido cualquier
+  propiedad de referencia no-nullable en el body, así que `POST devices/{udid}/action` fallaba con
+  400 "The Udid field is required" aunque el controller ignora ese campo del body y usa el `udid`
+  de la ruta. `AndroidActionRequest.Serial` (su equivalente en Android) ya es `string?` por esta
+  misma razón — se alineó `IOSActionRequest.Udid` a `string?` para que el contrato sea consistente
+  con Android y el endpoint funcione. Verificado: `dotnet build` sin errores; `dotnet run` levanta
+  la API, detecta el mismo dispositivo Android real end-to-end, sigue mostrando "Monitoreo de
+  dispositivos auto-iniciado.", y se probaron por HTTP los 8 endpoints de `/api/ios` sin
+  dispositivo físico — todos responden un `ActionResponse`/DTO controlado (nunca un crash ni un
+  400 de validación inesperado): `GET devices` → `[]`; `GET devices/{udid}/info` → `IOSDeviceResponse`
+  stub; `GET devices/{udid}/status` → dict con `capabilities`; `POST mirror/start` → error
+  controlado pidiendo configurar `IOS:Mirror:Executable`; `POST mirror/stop` → éxito informando que
+  no hay mirror activo; `POST action` → error controlado "Acción iOS no soportada todavía"; `GET
+  screenshot` → error controlado "`idevicescreenshot`... no se encontró el archivo especificado"
+  (confirma el punto 16, ver abajo); `GET mirror/sessions` → `{ success: true, sessions: [] }`.
+
+  **Punto 16 — bloqueo de binarios de libimobiledevice, confirmado y documentado**: bajo
+  `Tools/iOS/` solo existe el código fuente vendorizado de
+  [`libimobiledevice-1.4.0`](https://github.com/libimobiledevice/libimobiledevice) (headers, `.c`,
+  autotools) — no hay ningún `.exe`/`.dll` compilado (`find Tools/iOS -iname "*.exe" -o -iname
+  "*.dll"` no devuelve nada). El repo del usuario coincide exactamente con el proyecto vendorizado,
+  confirmando que la fuente ya está ahí pero sin compilar/instalar. `IOSDeviceService` (Infrastructure)
+  ya invoca por nombre las herramientas CLI de ese proyecto vía `IProcessHelper.ExecuteCommandAsync`:
+  `idevice_id -l` (listar dispositivos), `ideviceinfo -u {udid} -k {clave}` (info de dispositivo) e
+  `idevicescreenshot -u {udid} {ruta}` (captura). A diferencia de adb/scrcpy, `ProcessHelper` NO
+  resuelve rutas completas para estos tres nombres — los pasa tal cual al SO, que los busca en PATH
+  o en el `WorkingDirectory` (`Tools/`); como no hay binarios compilados en ningún lado, cualquier
+  llamada real falla en runtime con "no se encontró el archivo especificado" (confirmado en vivo
+  con `idevicescreenshot` arriba). Esto es el bloqueo funcional real de iOS: falta compilar
+  `libimobiledevice` (o obtener binarios ya compilados de terceros) e instalarlos en
+  `Tools/iOS/<herramienta>/`, análogo a como ya están `Tools/Android/adb` y `Tools/Android/scrcpy`.
+  Sigue fuera de alcance de esta limpieza — el circuito de Mediator/Application/Infrastructure ya
+  está cerrado end-to-end; lo único que falta es el binario externo, exactamente como preveía este
+  punto del plan.
+
+  **Actualización (2026-07-28) — el bloqueo de binarios se resolvió parcialmente, probado con un
+  iPad real conectado por USB**: se encontraron binarios de libimobiledevice ya compilados para
+  Windows dentro del SDK `Microsoft.iOS.Windows.Sdk` de .NET (usado por MAUI/Xamarin.iOS,
+  `C:\Program Files\dotnet\packs\Microsoft.iOS.Windows.Sdk.net9.0_<version>\...\imobiledevice-x64\`)
+  — no hizo falta compilar nada del código fuente vendorizado. El bloqueo real no era el binario
+  sino el driver USB: Windows tenía el iPad enlazado al driver genérico `usbccgp`, no `WinUSB`;
+  se resolvió instalando **"Apple Devices"** desde Microsoft Store (reemplazo moderno de iTunes,
+  `winget install --id 9NP83LWLPZ9K --source msstore`) y lanzándola una vez, tras lo cual Windows
+  re-enumeró el iPad con una interfaz atada a `WinUSB`. Con `dumpbin /dependents` se identificó el
+  set mínimo real de dependencias de `idevice_id.exe`/`ideviceinfo.exe`/`idevicescreenshot.exe`
+  (7 DLLs: `getopt`, `imobiledevice`, `plist`, `usbmuxd`, `LIBEAY32`, `SSLEAY32`, `vcruntime140` —
+  nada de `libcurl`/`libxml2`/`libusb`, esas son de otras herramientas del pack que no se usan) y
+  se copiaron esos 3 `.exe` + 7 `.dll` (~3.1 MB) a `Tools/iOS/libimobiledevice/`, mismo patrón que
+  `Tools/Android/adb`/`Tools/Android/scrcpy` (se copian solos al build output vía el
+  `<Content Include="..\Tools\**\*">` ya existente en el `.csproj`, sin tocar el `.csproj`).
+  `ProcessHelper` ahora resuelve `idevice_id`/`ideviceinfo`/`idevicescreenshot` a esa ruta en
+  Windows (antes solo mapeaba `adb`/`scrcpy`); en Linux/macOS esos tres quedan como nombre de
+  comando sin resolver, dependiendo de que estén instalados vía el gestor de paquetes del sistema,
+  ya que no hay build vendorizado para esos SO. De paso se generalizó la validación de "archivo no
+  encontrado": antes chequeaba por lista de nombres (`"adb" or "scrcpy"`), ahora chequea
+  `actualFileName != fileName` — se aplica automáticamente a cualquier nombre que sí se resolvió a
+  una ruta vendorizada, sin necesidad de mantener la lista de nombres actualizada a mano.
+  Verificado con la API real (no solo el CLI suelto) y el iPad conectado: `GET /api/ios/devices`,
+  `.../info` y `.../status` devuelven datos reales (`"iPad de Desarrollo"`, `iPad14,1`, iPadOS
+  `26.5.2`, `connected: true`) resolviendo los binarios desde `Tools/iOS/libimobiledevice/`, sin
+  ningún cambio de `PATH` del sistema. `idevicescreenshot` sigue fallando, pero por un motivo
+  *distinto y más específico* al que preveía este punto: pide montar la Developer Disk Image del
+  dispositivo (desde iOS 17 son "Personalized DDIs" que requieren Xcode) — no arreglado, sigue
+  pendiente. El mirror de video en sí (`StartIOSMirrorCommand`) tampoco se probó con una
+  herramienta real todavía — sigue necesitando un ejecutable externo tipo UxPlay o
+  pymobiledevice3/IosScreenCaptureTool, ninguno instalado en esta máquina.
+
+  **Punto 17 — `IUsbHardwareWatcher` extraído como puerto**: agregada la interfaz
+  `Mobile.Remote.Toolkit.Application/Services/IUsbHardwareWatcher.cs` (`Start(Func<Task>
+  onHardwareChanged)` / `Stop()` / `IDisposable`). Dos implementaciones nuevas en
+  `Infrastructure/Monitoring/`: `WindowsUsbHardwareWatcher` (la lógica WMI de
+  `Win32_DeviceChangeEvent` que antes vivía dentro de `DeviceMonitoringService`, movida tal cual) y
+  `PollingUsbHardwareWatcher` (fallback multiplataforma nuevo: `System.Threading.Timer` cada 5s que
+  dispara el mismo callback de refresco, para que el monitoreo funcione también fuera de Windows en
+  vez de quedar inactivo con solo un `LogWarning` como antes). `DeviceMonitoringService` ya no
+  conoce WMI ni `RuntimeInformation`: recibe `IUsbHardwareWatcher` por constructor y solo llama a
+  `_usbWatcher.Start(RefreshDeviceListAsync)` / `.Stop()` / `.Dispose()`. La selección de
+  implementación (`RuntimeInformation.IsOSPlatform(OSPlatform.Windows)`) se agregó dentro de
+  `Infrastructure/DependencyInjection.cs` (`AddInfrastructure`), no en el servicio — igual que pide
+  el plan. Verificado en el `dotnet run` de arriba: log `WindowsUsbHardwareWatcher[0] WMI USB
+  watcher iniciado` confirma que la resolución de DI y el comportamiento en Windows no cambiaron.
+
+  **Punto 18 — confirmado sin tocar**: `ProcessHelper.ExecuteCommandAsync`/`StartBackgroundProcessAsync`
+  mapean explícitamente `"adb"`/`"scrcpy"` a rutas completas bajo `Tools/Android/` según
+  `RuntimeInformation.IsOSPlatform` (Windows: `adb.exe`/`scrcpy.exe`; Linux/macOS: `adb`/`scrcpy` sin
+  extensión) — confirmado correcto para los tres SO, no se modificó nada de esa clase.
 
 ## Arquitectura objetivo
 

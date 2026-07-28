@@ -1,3 +1,5 @@
+using System.Runtime.InteropServices;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
@@ -34,7 +36,17 @@ namespace Mobile.Remote.Toolkit.Infrastructure
             });
             services.AddScoped<IFileService, FileService>();
 
-            // Monitoreo de dispositivos
+            // Monitoreo de dispositivos: el watcher USB se elige según el SO, la selección
+            // vive aquí (composition root) — el servicio de monitoreo no conoce la plataforma.
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                services.AddSingleton<IUsbHardwareWatcher, WindowsUsbHardwareWatcher>();
+            }
+            else
+            {
+                services.AddSingleton<IUsbHardwareWatcher, PollingUsbHardwareWatcher>();
+            }
+
             services.AddSingleton<IDeviceMonitoringService, DeviceMonitoringService>();
 
             return services;
