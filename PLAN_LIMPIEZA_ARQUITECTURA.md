@@ -218,10 +218,10 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   mapean explícitamente `"adb"`/`"scrcpy"` a rutas completas bajo `Tools/Android/` según
   `RuntimeInformation.IsOSPlatform` (Windows: `adb.exe`/`scrcpy.exe`; Linux/macOS: `adb`/`scrcpy` sin
   extensión) — confirmado correcto para los tres SO, no se modificó nada de esa clase.
-- ⬜ **Fase 9 — Mirror real de iOS vía UxPlay** (pendiente): compilar/instalar UxPlay y probarlo
+- ⬜ **Fase 8 — Mirror real de iOS vía UxPlay** (pendiente): compilar/instalar UxPlay y probarlo
   manualmente antes de integrarlo; no requiere tocar código de Application (`StartIOSMirrorCommand`
   ya es agnóstico de herramienta). Ver detalle más abajo.
-- ⬜ **Fase 10 — Control táctil real de iOS vía go-ios + WebDriverAgent** (pendiente, bloqueada en
+- ⬜ **Fase 9 — Control táctil real de iOS vía go-ios + WebDriverAgent** (pendiente, bloqueada en
   parte por necesitar Xcode/macOS para firmar WDA): hoy no existe ningún código de control, solo el
   stub `capabilities.touch = false`. Ver detalle más abajo.
 
@@ -392,15 +392,7 @@ resolverse con proyectos externos distintos sin acoplarse entre sí.
 Esto sigue sin ser parte de esta limpieza (fuera de alcance por diseño, ver punto 16) — se deja
 documentado como insumo para cuando se decida encarar el mirror/control real de iOS.
 
-## Fase 8 (opcional, requiere decisión aparte) — Contrato HTTP de errores
-
-`BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
-para errores reales. La mejor práctica REST sería devolver códigos de estado correctos (400/404/
-409/500) manteniendo el cuerpo `ActionResponse`. No se incluye como obligatorio en este plan
-porque cambia el contrato que el front Vue/Electron ya consume — se deja marcado para decidir
-aparte, coordinando el cambio con el cliente.
-
-## Fase 9 — Mirror real de iOS vía UxPlay (video, sin Mac)
+## Fase 8 — Mirror real de iOS vía UxPlay (video, sin Mac)
 
 Objetivo: que `POST /api/ios/devices/{udid}/mirror/start` levante video real de AirPlay, no un
 error de configuración. **No se escribe lógica de negocio nueva** — `StartIOSMirrorCommand` /
@@ -429,10 +421,10 @@ y configurarlo — igual patrón que ya existe para scrcpy con Android.
     quiere el mismo comportamiento para iOS habrá que enseñarle a reconocer también la ventana de
     UxPlay. Anotado como pendiente del lado del cliente, no se resuelve en este repo.
 
-## Fase 10 — Control táctil real de iOS vía go-ios + WebDriverAgent
+## Fase 9 — Control táctil real de iOS vía go-ios + WebDriverAgent
 
 Objetivo: reemplazar el stub actual (`capabilities.touch` siempre `false`,
-ver `IOSDeviceService.GetDeviceStatusAsync`) por control táctil real. A diferencia de la Fase 9,
+ver `IOSDeviceService.GetDeviceStatusAsync`) por control táctil real. A diferencia de la Fase 8,
 esta sí requiere escribir código nuevo — hoy no existe ningún puerto/adapter de control, solo el
 mirror y las queries de info/estado.
 
@@ -462,6 +454,18 @@ mirror y las queries de info/estado.
 31. Actualizar `GetIOSDeviceStatusQuery`/`GetDeviceStatusAsync` para que `capabilities.touch` pase
     a `true` una vez el control esté realmente disponible para ese dispositivo.
 
+## Fase 10 (opcional, requiere decisión aparte) — Contrato HTTP de errores
+
+A diferencia de las Fases 8 y 9, esta no es una continuación del hilo de iOS — es un tema
+transversal que afecta a todos los controllers (Android, iOS, Files, Monitoring, Stats) por igual,
+por eso queda al final en vez de intercalada entre las fases de iOS.
+
+`BaseController.ApiError` siempre responde `200 OK` con `Success=false` en el cuerpo, incluso
+para errores reales. La mejor práctica REST sería devolver códigos de estado correctos (400/404/
+409/500) manteniendo el cuerpo `ActionResponse`. No se incluye como obligatorio en este plan
+porque cambia el contrato que el front Vue/Electron ya consume — se deja marcado para decidir
+aparte, coordinando el cambio con el cliente.
+
 ## Verificación
 
 - `dotnet build Mobile.Remote.Toolkit.sln` sin errores después de cada fase — especialmente
@@ -477,9 +481,9 @@ mirror y las queries de info/estado.
     `ActionResponse`/error controlado, no crashear).
   - Log de arranque sigue mostrando "Monitoreo de dispositivos auto-iniciado."
 - Confirmar que `Domain.csproj` sigue sin ningún `PackageReference` al terminar el plan.
-- **Fase 9**: `mirror/start` contra un iPad real conectado (o en la misma WiFi para AirPlay)
+- **Fase 8**: `mirror/start` contra un iPad real conectado (o en la misma WiFi para AirPlay)
   levanta video real vía UxPlay, no el error de configuración actual; `mirror/stop` lo corta;
   `GET .../status` refleja `mirror_active`/PID mientras corre.
-- **Fase 10**: un `tap`/`swipe` real vía `ExecuteIOSActionCommand` (o el command dedicado que se
+- **Fase 9**: un `tap`/`swipe` real vía `ExecuteIOSActionCommand` (o el command dedicado que se
   elija) mueve algo en la pantalla del dispositivo; `capabilities.touch` pasa a `true` solo cuando
   WDA está efectivamente corriendo para ese udid, no de forma global.
