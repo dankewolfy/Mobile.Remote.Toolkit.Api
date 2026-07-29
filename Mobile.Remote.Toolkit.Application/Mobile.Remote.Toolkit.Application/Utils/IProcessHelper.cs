@@ -5,7 +5,7 @@ namespace Mobile.Remote.Toolkit.Application.Utils
     public interface IProcessHelper
     {
         Task<ProcessResult> ExecuteCommandAsync(string fileName, string arguments, int timeoutSeconds = 30);
-        Task<Process> StartBackgroundProcessAsync(string fileName, string arguments);
+        Task<Process> StartBackgroundProcessAsync(string fileName, string arguments, IDictionary<string, string>? environmentVariables = null);
         Task<bool> IsProcessRunningAsync(string processName);
         Task<List<int>> GetProcessIdsByNameAsync(string processName);
         Task<bool> KillProcessAsync(int processId);

@@ -218,12 +218,199 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   mapean explícitamente `"adb"`/`"scrcpy"` a rutas completas bajo `Tools/Android/` según
   `RuntimeInformation.IsOSPlatform` (Windows: `adb.exe`/`scrcpy.exe`; Linux/macOS: `adb`/`scrcpy` sin
   extensión) — confirmado correcto para los tres SO, no se modificó nada de esa clase.
-- ⬜ **Fase 8 — Mirror real de iOS vía UxPlay** (pendiente): compilar/instalar UxPlay y probarlo
-  manualmente antes de integrarlo; no requiere tocar código de Application (`StartIOSMirrorCommand`
-  ya es agnóstico de herramienta). Ver detalle más abajo.
+- ✅ **Fase 8 — Mirror real de iOS** (cerrada end-to-end el 2026-07-29, verificado con un iPad
+  real): dos caminos disponibles según la conectividad del entorno — AirPlay vía UxPlay (código y
+  binario listos, pendiente de WiFi compartido con el dispositivo en este entorno puntual) y
+  **mirror por USB vía IosScreenCaptureTool** (el que efectivamente funciona acá y quedó activo por
+  default). Ver Fase 8b más abajo para el camino que terminó funcionando.
+  **Binario**: no hay build oficial de UxPlay para Windows (solo fuente) ni un build de terceros
+  utilizable — se probó [`leapbtw/uxplay-windows`](https://github.com/leapbtw/uxplay-windows) (única
+  alternativa de terceros encontrada) y se descartó: es una app de bandeja Qt que ignora los
+  argumentos de línea de comandos (siempre lee `%APPDATA%\leapbtw\uxplay-windows\arguments.txt`) y
+  no abre AirPlay hasta un click manual en su ícono — incompatible con el patrón spawn/kill de
+  `IOSMirrorProcessRegistry`. Se optó por compilar UxPlay v1.73.6 desde fuente: se instaló MSYS2
+  (`winget install MSYS2.MSYS2`) y el toolchain UCRT64 (`cmake`, `gcc`, `ninja`, `libplist`,
+  `gstreamer` + `plugins-base/good/bad`). Hallazgo no anticipado: pacman fallaba con
+  `SSL certificate ... self-signed certificate in certificate chain` — la red tiene un proxy de
+  inspección TLS (Netskope, CA `certadmin@netskope.com` ya en el almacén de certificados de
+  Windows); se exportó ese CA y se agregó al bundle de MSYS2
+  (`/etc/pki/ca-trust/source/anchors/`, luego regenerado con `update-ca-trust extract` +
+  añadido a mano a `usr/ssl/certs/ca-bundle.crt` porque `update-ca-trust`/`p11-kit` fallaban con
+  "field is read-only" en este entorno). Compilado con `cmake -G Ninja -DCMAKE_BUILD_TYPE=Release`
+  + `ninja` desde una copia del código en `C:\build\uxplay-src` (no en una ruta profunda de
+  scratchpad: CMake avisó que el path original excedía `CMAKE_OBJECT_PATH_MAX`).
+  **Audio, hallazgo real solo detectado probando el binario**: `uxplay.exe` no trata el decoder de
+  audio ALAC/AAC (`gst-libav`, que envuelve FFmpeg) como opcional — `check_plugins()` en
+  `renderers/audio_renderer.c`, llamada desde `main()`, hace `exit(1)` si falta el plugin `libav`,
+  aunque el código de decodificación en sí (`avdec_aac`/`avdec_alac`) tiene su propio chequeo blando
+  aparte. Sin parchear ese gate no hay forma de arrancar un uxplay.exe "solo video"; parchearlo
+  divergía del binario upstream. Se optó por vendorizar `gst-libav` completo en vez de parchear —
+  decisión del usuario, sabiendo que arrastra toda la cadena de FFmpeg de MSYS2 (x264, x265, aom,
+  dav1d, whisper.cpp, etc., ninguno usado realmente por UxPlay, pero el paquete `ffmpeg` de MSYS2
+  no tiene una variante liviana).
+  **Vendorizado en `Tools/iOS/mirror/uxplay/`** (mismo patrón que `Tools/Android/scrcpy/`, sin tocar
+  el `.csproj`): `uxplay.exe` + el cierre real de dependencias resuelto con `dumpbin /dependents`
+  recursivo (mismo método que `libimobiledevice` en la Fase 7), partiendo no solo del `.exe` sino
+  también de los plugins de GStreamer que sus pipelines (`gst_parse_launch`) piden por nombre
+  (`app`, `playback`, `autodetect`, `videoconvertscale`, `audioconvert`/`resample`,
+  `videoparsersbad` para `h264parse`/`h265parse`, `videofilter` para `videoflip`, `volume`, `level`,
+  `d3d11`/`d3d12`/`wasapi`/`wasapi2`/`directsound` para hardware-decode y salida en Windows, y
+  `libav` para audio) — cada nombre de elemento se resolvió a su plugin real con
+  `gst-inspect-1.0.exe <elemento>` en vez de adivinar. Resultado: 126 DLLs en la raíz +
+  20 plugins en `gstreamer-1.0/` (subcarpeta nueva), ~173 MB — mucho más que el resto de `Tools/`
+  junto, pero bastante menos que los ~267 MB del build de terceros descartado (que traía Qt +
+  todo el árbol de GStreamer sin filtrar). Sin este trabajo de cierre de dependencias, con solo el
+  `.exe` (que es lo que pedía dumpbin directamente) `uxplay.exe` arrancaba pero fallaba con
+  "Required gstreamer plugin 'x' not found" al no encontrar sus plugins en runtime (GStreamer los
+  carga dinámicamente, no vía import table — el patrón de Fase 7 con `dumpbin` alcanzaba para
+  `libimobiledevice` porque esas herramientas son binarios estáticos sin plugins).
+  **Cableado nuevo, no anticipado por el texto original de la Fase 7**: GStreamer no encuentra los
+  plugins vendorizados solo con la carpeta al lado del `.exe` — hace falta la variable de entorno
+  `GST_PLUGIN_PATH` (y `GST_REGISTRY` para que cachee su propio registro dentro de
+  `Tools/iOS/mirror/uxplay/` en vez de `%LOCALAPPDATA%`). `IProcessHelper.StartBackgroundProcessAsync`
+  no soportaba pasar variables de entorno al proceso hijo — se agregó un parámetro opcional
+  `IDictionary<string, string>? environmentVariables = null` (interfaz en Application, implementación
+  en `ProcessHelper` seteando `startInfo.EnvironmentVariables`), y `IOSDeviceService.StartMirrorAsync`
+  las lee de una sección nueva `IOS:Mirror:EnvironmentVariables` en configuración — genérico, no
+  hardcodea nada de UxPlay (cualquier herramienta de mirror futura puede necesitar variables propias).
+  Segundo hallazgo probando por HTTP: `IOS:Mirror:Executable` con una ruta relativa
+  (`iOS\mirror\uxplay\uxplay.exe`) fallaba con "system cannot find the file specified" pese a que
+  `StartBackgroundProcessAsync` ya seteaba `WorkingDirectory = Tools/` — `Process.Start` de .NET
+  busca un nombre de archivo relativo usando el directorio actual del **proceso padre** (la API),
+  no el `WorkingDirectory` que se le configura al hijo (ese solo aplica una vez que el proceso ya
+  arrancó). Se generalizó `ProcessHelper.StartBackgroundProcessAsync` para combinar cualquier
+  `fileName` relativo con `Tools/` antes de lanzar el proceso (antes solo lo hacía para `adb`/`scrcpy`
+  vía diccionario hardcodeado); la validación de "herramienta no encontrada" se extendió igual, sin
+  romper el caso de rutas absolutas arbitrarias enviadas por el caller (que siguen sin validarse,
+  dejando que el SO falle naturalmente, como ya hacía `ExecuteCommandAsync`).
+  **`appsettings.json`** configurado con `IOS:Mirror:Executable = iOS\mirror\uxplay\uxplay.exe`,
+  `Mode = airplay`, `Arguments = -n Mobile-Remote-Toolkit -nh`, y las dos variables de entorno de
+  arriba.
+  **Verificado por HTTP** (sin iPad todavía, solo para confirmar el circuito): `POST
+  /api/ios/devices/{udid}/mirror/start` devuelve `success: true` con el PID real; `tasklist`
+  confirma `uxplay.exe` corriendo; `GET .../status` refleja `mirror_active: true` con el PID y
+  modo correctos; `POST mirror/stop` mata el proceso (confirmado con `tasklist` que ya no existe) y
+  `status` vuelve a `mirror_active: false`. El resto de la API sigue funcionando igual que en fases
+  previas (detecta el Android real, detecta el iPad real conectado por USB vía libimobiledevice).
+  **Pendiente real (punto 21) — bloqueado por conectividad de red, confirmado en vivo el 2026-07-29**:
+  se intentó la prueba con un iPad mini (iPad14,1, iPadOS 26.5.2) real. Se descubrió que la PC de
+  desarrollo no tiene forma de unirse a una red WiFi (`netsh wlan show interfaces` → adaptador
+  Intel Wi-Fi 6E AX211 presente pero sin uso posible en este entorno; según el usuario, la máquina
+  no tiene adaptador WiFi utilizable) — solo tiene Ethernet cableado a la LAN corporativa. El iPad
+  está en la red WiFi de la misma empresa; hay ruteo L3 entre ambas redes (un `ping` desde la PC a la
+  IP del iPad responde), pero **AirPlay se descubre por mDNS/Bonjour, que es multicast
+  (UDP a 224.0.0.251:5353) y los routers/switches no lo reenvían entre subredes distintas por
+  defecto**, aunque haya ruteo unicast normal — confirmado en el propio iPad: el selector de
+  "Duplicar pantalla" del Centro de Control solo mostraba "Bocina del iPad" (salida de audio local),
+  sin ningún receptor AirPlay en la lista, pese a que `uxplay.exe` estaba corriendo y escuchando
+  (PID confirmado con `tasklist`) en el momento del intento.
+  **Alternativa evaluada y pospuesta, no descartada**: UxPlay 1.73+ soporta descubrimiento vía
+  baliza Bluetooth LE (`uxplay -ble` + `uxplay-beacon.py`, ver Anexo de la Fase 7) pensado
+  exactamente para redes que no dejan correr mDNS — el video en sí seguiría viajando por la ruta IP
+  ya confirmada (el ping funciona), solo el descubrimiento cambiaría de transporte. Requiere
+  Bluetooth 4.0+ en la PC (parece tener adaptador, no confirmado en profundidad), dependencias
+  Python/winrt adicionales, y que el iPad esté físicamente cerca (alcance Bluetooth, no WiFi) — se
+  decidió no perseguirlo ahora y dejar el circuito de AirPlay como código+vendorizado completos
+  (sigue siendo la opción para deployments donde sí haya WiFi compartido), y pivotar a mirror por
+  USB — ver Fase 8b.
+
+  ### Fase 8b — Mirror real de iOS por USB vía IosScreenCaptureTool (2026-07-29, funcionando end-to-end)
+
+  Dado que el entorno de esta PC no tiene WiFi utilizable pero sí tiene cable USB siempre
+  disponible, se buscó una alternativa que no dependiera de AirPlay. Se encontró
+  [`IosScreenCaptureTool`](https://github.com/BieleckiLtd/IosScreenCaptureTool) (BieleckiLtd, MIT,
+  .NET): mirror de pantalla de iOS por cable, usando por dentro `pymobiledevice3` para hablar el
+  mismo protocolo DVT/CoreMediaIO que usa Xcode/QuickTime — no requiere AirPlay ni WiFi para nada.
+  Se compiló desde fuente (no se usó el binario prearmado de terceros, dado que corre con
+  privilegios elevados — más control sobre qué corre exactamente) con
+  `dotnet publish -r win-x64 --self-contained true`, vendorizado en
+  `Tools/iOS/mirror/iosscreencapture/` (~171 MB, incluye el runtime .NET+WPF completo para no
+  depender de que la máquina destino tenga el Desktop Runtime instalado — mismo criterio que se usó
+  para no depender de gestores de paquetes del sistema en el resto de `Tools/`).
+
+  **Hallazgo estructural, relevante también para la Fase 9**: `IosScreenCaptureTool` se
+  autoeleva a Administrador en cada arranque (`WindowsElevation.cs`/`ElevationRelauncher.cs`) porque
+  ejecuta `python -m pymobiledevice3 lockdown start-tunnel --script-mode --udid <udid>` — desde
+  iOS 17, Apple movió los servicios de developer (screen capture, y lo que va a necesitar
+  WebDriverAgent en la Fase 9) detrás de un túnel cifrado "Remote Service Discovery", y crear ese
+  túnel implica levantar una interfaz de red virtual, lo cual requiere admin en Windows por diseño
+  de Apple/pymobiledevice3 — no es una limitación puntual de esta herramienta. **Cualquier enfoque
+  de la Fase 9 que use `pymobiledevice3`/WDA sobre un iPhone/iPad con iOS 17+ muy probablemente
+  choque con el mismo requisito.**
+
+  **Decisión de seguridad (el usuario explícitamente rechazó correr toda la API elevada)**: en vez
+  de correr `Mobile.Remote.Toolkit.Api` como servicio con privilegios de administrador (soluciona
+  todo pero expone toda la superficie de la API con privilegios elevados), se usan **dos Windows
+  Scheduled Tasks acotadas**, creadas una sola vez por máquina desde una PowerShell elevada
+  (`Tools/iOS/mirror/iosscreencapture/setup-scheduled-tasks.ps1`):
+  - `MobileRemoteToolkit_IosMirror_Start`: ejecuta `IosScreenCaptureTool.exe --start-minimized` con
+    `RunLevel=Highest`.
+  - `MobileRemoteToolkit_IosMirror_Stop`: ejecuta `taskkill /IM IosScreenCaptureTool.exe /F`, mismo
+    `RunLevel=Highest`.
+
+  Ninguna tiene disparador automático — la API (corriendo sin privilegios) las dispara con
+  `schtasks /run /tn <nombre>` cuando llega `mirror/start`/`mirror/stop`. Windows no pide UAC al
+  disparar una tarea ya configurada así (ese es el mecanismo estándar para este problema en
+  Windows) — confirmado en vivo, cero prompts interactivos.
+
+  Se evaluó y **descartó** forkear el tool para agregar un comando "exit" a su named pipe existente
+  (`IosScreenCaptureTool.CommandPipe.v1`, hoy solo entiende `"capture-frame"` — confirmado leyendo
+  `MainWindow.xaml.cs:617`) como alternativa a la segunda Scheduled Task: técnicamente viable, pero
+  implica mantener un fork de un proyecto de terceros contra el upstream indefinidamente a cambio de
+  ahorrarse una tarea programada — no vale la pena.
+
+  **Blocker real #1 — no es de red esta vez**: al intentar `--capture-frame` contra el proceso ya
+  corriendo, devolvía "No frame available yet." sin crashear. La causa: `pip install
+  pymobiledevice3` (que el propio tool corre en su primer arranque) había fallado a mitad de camino
+  por un archivo cacheado de pip con permisos restrictivos (`PermissionError` en un wheel bajo
+  `AppData\Local\pip\cache`), producto de haber corrido `pip` alguna vez con un token elevado —
+  se resolvió borrando el directorio de caché de pip completo y reinstalando.
+  **Blocker real #2**: `pymobiledevice3` depende de un módulo nativo (`lzfse`) sin wheel
+  precompilado para Python 3.14 (la versión que ya estaba instalada en esta máquina, vía
+  `msstore`/`winget`) — falla al compilar sin Visual C++ Build Tools bien configurado. El propio
+  bootstrapper del tool (`PymobiledeviceBootstrapper.cs`) ya prioriza buscar Python en
+  `%LocalAppData%\Programs\Python\Python312\python.exe` antes que en el PATH del sistema — se
+  instaló Python 3.12 ahí explícitamente (`winget install --id Python.Python.3.12 --scope user`,
+  el mismo paquete que el propio tool intentaría instalar si no encontrara Python en absoluto) y
+  `pymobiledevice3` instaló limpio en esa versión (sí tiene wheels precompilados para 3.12).
+
+  **Cambios de código**: además de requerir activar **Modo Desarrollador** una vez en el dispositivo
+  (Ajustes → Privacidad y Seguridad → Modo Desarrollador — el propio tool dispara que aparezca esa
+  opción en el primer intento de conexión, hay que activarla a mano y reiniciar el iPad una vez),
+  se agregó una rama nueva en `IOSDeviceService`: si `IOS:Mirror:Mode = "scheduled-task"`,
+  `StartMirrorAsync` no spawnea un proceso directo (como sí hace para UxPlay) sino que dispara
+  `IOS:Mirror:StartTaskName` vía `schtasks /run` y luego resuelve el `Process` real buscándolo por
+  `IOS:Mirror:ProcessName` (`Process.GetProcessesByName`, reintentando hasta 5 segundos) para
+  registrarlo en el mismo `IOSMirrorProcessRegistry` de siempre. `StopMirrorAsync` rama de la misma
+  forma: si el modo de la sesión es `scheduled-task`, dispara `IOS:Mirror:StopTaskName` en vez de
+  `session.Process.Kill()` (que hubiera fallado — Windows no deja matar un proceso más privilegiado
+  que el que lo pide). Bug real encontrado recién al probar por HTTP:
+  `IOSMirrorProcessRegistry.Register` hacía `process.EnableRaisingEvents = true` incondicionalmente,
+  y esa llamada necesita abrir un handle de espera sobre el proceso que Windows deniega si el
+  proceso es más privilegiado que quien lo pide (`Win32Exception: Access is denied`, confirmado en
+  el log con el stack trace completo) — se envolvió esa suscripción en un `try/catch` (loguea un
+  warning y sigue sin el auto-cleanup-al-salir, pero el tracking por `Id`/`HasExited` sigue andando
+  porque esas lecturas solo necesitan `PROCESS_QUERY_LIMITED_INFORMATION`, un permiso que sí cruza
+  el límite de privilegio). `appsettings.json` quedó con `IOS:Mirror:Mode = "scheduled-task"` como
+  modo activo por defecto (es el que efectivamente funciona en este entorno); las claves de UxPlay
+  (`Executable`/`Arguments`/`EnvironmentVariables`) se dejaron configuradas al lado, listas para
+  volver a `Mode = "airplay"` el día que haya WiFi compartido entre el host y un dispositivo iOS.
+
+  **Verificado end-to-end con el iPad real conectado por USB**: `POST mirror/start` → dispara la
+  Scheduled Task → proceso elevado real aparece (confirmado con `tasklist`) → `GET status` refleja
+  `mirror_active: true` con el PID correcto → `--capture-frame` devuelve una imagen real de
+  1 MB+ que es la pantalla actual del iPad en ese momento exacto (confirmado visualmente, con hora
+  coincidente) → `POST mirror/stop` → dispara la segunda Scheduled Task → proceso muerto
+  (confirmado con `tasklist`) → `status` vuelve a `mirror_active: false`. Sin ningún UAC visible en
+  todo el flujo.
+
 - ⬜ **Fase 9 — Control táctil real de iOS vía go-ios + WebDriverAgent** (pendiente, bloqueada en
   parte por necesitar Xcode/macOS para firmar WDA): hoy no existe ningún código de control, solo el
-  stub `capabilities.touch = false`. Ver detalle más abajo.
+  stub `capabilities.touch = false`. Ver detalle más abajo. **Actualización de la Fase 8b**: en
+  iOS 17+, instalar/hablarle a WDA muy probablemente necesite el mismo túnel "Remote Service
+  Discovery" de `pymobiledevice3` que requiere admin en Windows — repetir el patrón de las dos
+  Scheduled Tasks (o reusar/extender las mismas) en vez de correr la API elevada, salvo que
+  `go-ios` resuelva ese túnel de otra forma (a confirmar cuando se aborde esta fase).
 
 ## Arquitectura objetivo
 

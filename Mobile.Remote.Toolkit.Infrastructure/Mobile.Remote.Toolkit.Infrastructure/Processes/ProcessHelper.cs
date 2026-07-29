@@ -171,7 +171,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
             }
         }
 
-        public Task<Process> StartBackgroundProcessAsync(string fileName, string arguments)
+        public Task<Process> StartBackgroundProcessAsync(string fileName, string arguments, IDictionary<string, string>? environmentVariables = null)
         {
             var actualFileName = fileName.ToLower() switch
             {
@@ -180,9 +180,20 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
                 _ => fileName
             };
 
+            // Rutas configurables (p.ej. IOS:Mirror:Executable) llegan relativas a Tools/: Process.Start
+            // no las resuelve contra WorkingDirectory (esa búsqueda usa el directorio actual del proceso
+            // padre, no el del hijo), así que hay que combinarlas nosotros mismos.
+            var wasRelativeToolPath = actualFileName == fileName && !Path.IsPathRooted(actualFileName);
+            if (wasRelativeToolPath)
+                actualFileName = Path.Combine(_toolsPath, actualFileName);
+
             _logger.LogInformation($"Iniciando proceso en segundo plano: {actualFileName} {arguments}");
 
-            if (!File.Exists(actualFileName) && fileName.ToLower() is "adb" or "scrcpy")
+            // Solo validamos existencia cuando resolvimos a una ruta vendorizada/conocida (adb, scrcpy,
+            // o una ruta relativa a Tools/); para una ruta absoluta arbitraria dejamos que el SO falle
+            // naturalmente, igual que en ExecuteCommandAsync.
+            var isKnownPath = wasRelativeToolPath || fileName.ToLower() is "adb" or "scrcpy";
+            if (isKnownPath && !File.Exists(actualFileName))
             {
                 _logger.LogError($"Herramienta no encontrada: {actualFileName}");
                 throw new FileNotFoundException($"Herramienta no encontrada: {actualFileName}");
@@ -198,6 +209,12 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
                 CreateNoWindow = false,
                 WorkingDirectory = Directory.Exists(_toolsPath) ? _toolsPath : Environment.CurrentDirectory
             };
+
+            if (environmentVariables != null)
+            {
+                foreach (var (key, value) in environmentVariables)
+                    startInfo.EnvironmentVariables[key] = value;
+            }
 
             var process = new Process { StartInfo = startInfo };
             process.Start();

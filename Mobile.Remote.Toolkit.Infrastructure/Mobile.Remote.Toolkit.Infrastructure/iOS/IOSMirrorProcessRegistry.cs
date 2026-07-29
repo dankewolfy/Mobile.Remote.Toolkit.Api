@@ -19,12 +19,24 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 
         public void Register(string udid, Process process, string mode, string executable, string arguments)
         {
-            process.EnableRaisingEvents = true;
-            process.Exited += (_, _) =>
+            try
             {
-                _logger.LogInformation("[iOS Mirror] Proceso cerrado para {Udid} (PID={Pid})", udid, process.Id);
-                _sessions.TryRemove(udid, out _);
-            };
+                // Un proceso lanzado via Scheduled Task corre elevado (mas privilegios que esta API),
+                // y Windows no deja abrir el handle de espera que EnableRaisingEvents necesita sobre un
+                // proceso mas privilegiado que el que lo pide (Access Denied) - la lectura de Id/HasExited
+                // sigue funcionando (solo necesitan PROCESS_QUERY_LIMITED_INFORMATION), asi que se sigue
+                // pudiendo trackear el proceso, solo sin el auto-cleanup al salir.
+                process.EnableRaisingEvents = true;
+                process.Exited += (_, _) =>
+                {
+                    _logger.LogInformation("[iOS Mirror] Proceso cerrado para {Udid} (PID={Pid})", udid, process.Id);
+                    _sessions.TryRemove(udid, out _);
+                };
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[iOS Mirror] No se pudo suscribir al evento Exited del proceso para {Udid} (probablemente corre con mas privilegios); se sigue trackeando sin auto-cleanup", udid);
+            }
 
             _sessions[udid] = new IOSMirrorSession
             {

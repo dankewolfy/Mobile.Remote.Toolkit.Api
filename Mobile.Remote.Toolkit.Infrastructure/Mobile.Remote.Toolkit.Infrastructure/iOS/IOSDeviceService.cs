@@ -1,3 +1,5 @@
+using System.Diagnostics;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -154,6 +156,11 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 }
 
                 var opts = NormalizeOptions(options);
+                var mode = GetOption(opts, "mode") ?? _configuration["IOS:Mirror:Mode"] ?? "external";
+
+                if (string.Equals(mode, "scheduled-task", StringComparison.OrdinalIgnoreCase))
+                    return await StartMirrorViaScheduledTaskAsync(udid, mode);
+
                 var executable = GetOption(opts, "executable")
                     ?? GetOption(opts, "toolPath")
                     ?? _configuration["IOS:Mirror:Executable"];
@@ -182,15 +189,18 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     };
                 }
 
-                var mode = GetOption(opts, "mode") ?? _configuration["IOS:Mirror:Mode"] ?? "external";
                 var argumentsTemplate = GetOption(opts, "arguments")
                     ?? _configuration["IOS:Mirror:Arguments"]
                     ?? "-u {udid}";
                 var arguments = argumentsTemplate.Replace("{udid}", udid, StringComparison.OrdinalIgnoreCase);
 
+                var environmentVariables = _configuration.GetSection("IOS:Mirror:EnvironmentVariables")
+                    .GetChildren()
+                    .ToDictionary(section => section.Key, section => section.Value, StringComparer.OrdinalIgnoreCase);
+
                 _logger.LogInformation("[iOS Mirror] Iniciando {Executable} {Arguments}", executable, arguments);
 
-                var process = await _processHelper.StartBackgroundProcessAsync(executable, arguments);
+                var process = await _processHelper.StartBackgroundProcessAsync(executable, arguments, environmentVariables);
                 _mirrorRegistry.Register(udid, process, mode, executable, arguments);
 
                 await _notificationService.NotifyMirrorStarted(udid);
@@ -231,10 +241,44 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 if (session == null)
                     return new ActionResponse { Success = true, Message = "No hay mirror iOS activo para este dispositivo" };
 
-                if (!session.Process.HasExited)
-                    session.Process.Kill();
+                if (string.Equals(session.Mode, "scheduled-task", StringComparison.OrdinalIgnoreCase))
+                {
+                    // El proceso corre elevado (via Scheduled Task) y nuestra API no tiene privilegios
+                    // para matarlo directamente (Windows no deja terminar un proceso mas privilegiado
+                    // que el que llama) - se dispara otra Scheduled Task, tambien elevada, acotada solo
+                    // a un taskkill del proceso por nombre.
+                    var stopTaskName = _configuration["IOS:Mirror:StopTaskName"];
+                    session.Process.Dispose();
 
-                session.Process.Dispose();
+                    if (string.IsNullOrWhiteSpace(stopTaskName))
+                    {
+                        return new ActionResponse
+                        {
+                            Success = false,
+                            Message = "Mirror iOS por Scheduled Task requiere configuracion",
+                            Error = "Configure IOS:Mirror:StopTaskName en appsettings."
+                        };
+                    }
+
+                    var stopResult = await _processHelper.ExecuteCommandAsync("schtasks", $"/run /tn \"{stopTaskName}\"");
+                    if (!stopResult.Success)
+                    {
+                        return new ActionResponse
+                        {
+                            Success = false,
+                            Message = "Error disparando la Scheduled Task de detencion del mirror iOS",
+                            Error = string.IsNullOrWhiteSpace(stopResult.Error) ? stopResult.Output : stopResult.Error
+                        };
+                    }
+                }
+                else
+                {
+                    if (!session.Process.HasExited)
+                        session.Process.Kill();
+
+                    session.Process.Dispose();
+                }
+
                 await _notificationService.NotifyMirrorStopped(udid);
 
                 return new ActionResponse { Success = true, Message = "Mirror iOS detenido correctamente" };
@@ -249,6 +293,75 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     Error = ex.Message
                 };
             }
+        }
+
+        private async Task<ActionResponse> StartMirrorViaScheduledTaskAsync(string udid, string mode)
+        {
+            // El mirror por USB (IosScreenCaptureTool/pymobiledevice3) necesita crear un tunel de red
+            // para hablar con los servicios de developer de iOS 17+, lo cual requiere privilegios de
+            // administrador en Windows. En vez de correr toda la API elevada (superficie de ataque
+            // enorme para una sola feature), se dispara una Scheduled Task pre-configurada con
+            // privilegios altos (setup-scheduled-tasks.ps1, una sola vez por maquina) - la API en si
+            // sigue corriendo sin privilegios.
+            var startTaskName = _configuration["IOS:Mirror:StartTaskName"];
+            var processName = _configuration["IOS:Mirror:ProcessName"];
+
+            if (string.IsNullOrWhiteSpace(startTaskName) || string.IsNullOrWhiteSpace(processName))
+            {
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "Mirror iOS por Scheduled Task requiere configuracion",
+                    Error = "Configure IOS:Mirror:StartTaskName e IOS:Mirror:ProcessName en appsettings."
+                };
+            }
+
+            _logger.LogInformation("[iOS Mirror] Disparando Scheduled Task {TaskName}", startTaskName);
+
+            var result = await _processHelper.ExecuteCommandAsync("schtasks", $"/run /tn \"{startTaskName}\"");
+            if (!result.Success)
+            {
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "Error disparando la Scheduled Task de mirror iOS",
+                    Error = string.IsNullOrWhiteSpace(result.Error) ? result.Output : result.Error
+                };
+            }
+
+            Process process = null;
+            for (var attempt = 0; attempt < 10 && process == null; attempt++)
+            {
+                await Task.Delay(500);
+                process = Process.GetProcessesByName(processName).FirstOrDefault();
+            }
+
+            if (process == null)
+            {
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "La Scheduled Task se disparo pero el proceso no aparecio a tiempo",
+                    Error = $"No se encontro ningun proceso '{processName}' luego de 5 segundos."
+                };
+            }
+
+            _mirrorRegistry.Register(udid, process, mode, processName, string.Empty);
+            await _notificationService.NotifyMirrorStarted(udid);
+
+            return new ActionResponse
+            {
+                Success = true,
+                Message = "Mirror iOS iniciado correctamente (via Scheduled Task)",
+                Data = new Dictionary<string, object>
+                {
+                    ["udid"] = udid,
+                    ["mode"] = mode,
+                    ["executable"] = processName,
+                    ["pid"] = process.Id,
+                    ["touch_supported"] = false
+                }
+            };
         }
 
         public async Task<ActionResponse> TakeScreenshotAsync(string udid, string filename = null)
