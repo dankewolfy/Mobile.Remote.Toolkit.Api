@@ -14,6 +14,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
     public class IOSDeviceService : IIOSDeviceService
     {
         private readonly IOSMirrorProcessRegistry _mirrorRegistry;
+        private readonly GoIosTunnelManager _tunnelManager;
         private readonly IProcessHelper _processHelper;
         private readonly INotificationService _notificationService;
         private readonly IConfiguration _configuration;
@@ -21,12 +22,14 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 
         public IOSDeviceService(
             IOSMirrorProcessRegistry mirrorRegistry,
+            GoIosTunnelManager tunnelManager,
             IProcessHelper processHelper,
             INotificationService notificationService,
             IConfiguration configuration,
             ILogger<IOSDeviceService> logger)
         {
             _mirrorRegistry = mirrorRegistry;
+            _tunnelManager = tunnelManager;
             _processHelper = processHelper;
             _notificationService = notificationService;
             _configuration = configuration;
@@ -115,6 +118,9 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 status["process_id"] = session.Process.Id;
                 status["mirror_mode"] = session.Mode;
                 status["mirror_executable"] = session.Executable;
+
+                if (session.Port.HasValue)
+                    status["mirror_url"] = $"http://localhost:{session.Port.Value}/";
             }
 
             return status;
@@ -158,8 +164,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 var opts = NormalizeOptions(options);
                 var mode = GetOption(opts, "mode") ?? _configuration["IOS:Mirror:Mode"] ?? "external";
 
-                if (string.Equals(mode, "scheduled-task", StringComparison.OrdinalIgnoreCase))
-                    return await StartMirrorViaScheduledTaskAsync(udid, mode);
+                if (string.Equals(mode, "go-ios", StringComparison.OrdinalIgnoreCase))
+                    return await StartMirrorViaGoIosAsync(udid, mode);
 
                 var executable = GetOption(opts, "executable")
                     ?? GetOption(opts, "toolPath")
@@ -241,43 +247,13 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 if (session == null)
                     return new ActionResponse { Success = true, Message = "No hay mirror iOS activo para este dispositivo" };
 
-                if (string.Equals(session.Mode, "scheduled-task", StringComparison.OrdinalIgnoreCase))
-                {
-                    // El proceso corre elevado (via Scheduled Task) y nuestra API no tiene privilegios
-                    // para matarlo directamente (Windows no deja terminar un proceso mas privilegiado
-                    // que el que llama) - se dispara otra Scheduled Task, tambien elevada, acotada solo
-                    // a un taskkill del proceso por nombre.
-                    var stopTaskName = _configuration["IOS:Mirror:StopTaskName"];
-                    session.Process.Dispose();
+                // A diferencia del viejo mirror por IosScreenCaptureTool (corria elevado via Scheduled
+                // Task), "ios screenshot --stream" de go-ios corre sin privilegios especiales - se puede
+                // matar directo, sin ningun mecanismo de Scheduled Task de por medio.
+                if (!session.Process.HasExited)
+                    session.Process.Kill();
 
-                    if (string.IsNullOrWhiteSpace(stopTaskName))
-                    {
-                        return new ActionResponse
-                        {
-                            Success = false,
-                            Message = "Mirror iOS por Scheduled Task requiere configuracion",
-                            Error = "Configure IOS:Mirror:StopTaskName en appsettings."
-                        };
-                    }
-
-                    var stopResult = await _processHelper.ExecuteCommandAsync("schtasks", $"/run /tn \"{stopTaskName}\"");
-                    if (!stopResult.Success)
-                    {
-                        return new ActionResponse
-                        {
-                            Success = false,
-                            Message = "Error disparando la Scheduled Task de detencion del mirror iOS",
-                            Error = string.IsNullOrWhiteSpace(stopResult.Error) ? stopResult.Output : stopResult.Error
-                        };
-                    }
-                }
-                else
-                {
-                    if (!session.Process.HasExited)
-                        session.Process.Kill();
-
-                    session.Process.Dispose();
-                }
+                session.Process.Dispose();
 
                 await _notificationService.NotifyMirrorStopped(udid);
 
@@ -295,70 +271,47 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
             }
         }
 
-        private async Task<ActionResponse> StartMirrorViaScheduledTaskAsync(string udid, string mode)
+        private async Task<ActionResponse> StartMirrorViaGoIosAsync(string udid, string mode)
         {
-            // El mirror por USB (IosScreenCaptureTool/pymobiledevice3) necesita crear un tunel de red
-            // para hablar con los servicios de developer de iOS 17+, lo cual requiere privilegios de
-            // administrador en Windows. En vez de correr toda la API elevada (superficie de ataque
-            // enorme para una sola feature), se dispara una Scheduled Task pre-configurada con
-            // privilegios altos (setup-scheduled-tasks.ps1, una sola vez por maquina) - la API en si
-            // sigue corriendo sin privilegios.
-            var startTaskName = _configuration["IOS:Mirror:StartTaskName"];
-            var processName = _configuration["IOS:Mirror:ProcessName"];
-
-            if (string.IsNullOrWhiteSpace(startTaskName) || string.IsNullOrWhiteSpace(processName))
+            // go-ios reemplaza al viejo stack IosScreenCaptureTool/pymobiledevice3: "ios screenshot
+            // --stream" sirve un stream MJPEG real por HTTP (consumible por cualquier navegador con
+            // un <img src="...">, no solo por una ventana nativa dockeada en Electron), y "tunnel start
+            // --userspace" no pide privilegios de administrador en Windows - confirmado en vivo con un
+            // iPad real. Por eso no hace falta ningun mecanismo de Scheduled Task elevada aca.
+            var executable = _configuration["IOS:Mirror:GoIosExecutable"];
+            if (string.IsNullOrWhiteSpace(executable))
             {
                 return new ActionResponse
                 {
                     Success = false,
-                    Message = "Mirror iOS por Scheduled Task requiere configuracion",
-                    Error = "Configure IOS:Mirror:StartTaskName e IOS:Mirror:ProcessName en appsettings."
+                    Message = "Mirror iOS via go-ios requiere configuracion",
+                    Error = "Configure IOS:Mirror:GoIosExecutable en appsettings."
                 };
             }
 
-            _logger.LogInformation("[iOS Mirror] Disparando Scheduled Task {TaskName}", startTaskName);
+            if (!int.TryParse(_configuration["IOS:Mirror:Port"], out var port))
+                port = 3333;
 
-            var result = await _processHelper.ExecuteCommandAsync("schtasks", $"/run /tn \"{startTaskName}\"");
-            if (!result.Success)
-            {
-                return new ActionResponse
-                {
-                    Success = false,
-                    Message = "Error disparando la Scheduled Task de mirror iOS",
-                    Error = string.IsNullOrWhiteSpace(result.Error) ? result.Output : result.Error
-                };
-            }
+            await _tunnelManager.EnsureRunningAsync(_processHelper, executable);
 
-            Process process = null;
-            for (var attempt = 0; attempt < 10 && process == null; attempt++)
-            {
-                await Task.Delay(500);
-                process = Process.GetProcessesByName(processName).FirstOrDefault();
-            }
+            var arguments = $"screenshot --stream --port={port} --udid={udid}";
+            var process = await _processHelper.StartBackgroundProcessAsync(executable, arguments);
 
-            if (process == null)
-            {
-                return new ActionResponse
-                {
-                    Success = false,
-                    Message = "La Scheduled Task se disparo pero el proceso no aparecio a tiempo",
-                    Error = $"No se encontro ningun proceso '{processName}' luego de 5 segundos."
-                };
-            }
-
-            _mirrorRegistry.Register(udid, process, mode, processName, string.Empty);
+            _mirrorRegistry.Register(udid, process, mode, executable, arguments, port);
             await _notificationService.NotifyMirrorStarted(udid);
 
             return new ActionResponse
             {
                 Success = true,
-                Message = "Mirror iOS iniciado correctamente (via Scheduled Task)",
+                Message = "Mirror iOS iniciado correctamente (via go-ios)",
                 Data = new Dictionary<string, object>
                 {
                     ["udid"] = udid,
                     ["mode"] = mode,
-                    ["executable"] = processName,
+                    ["executable"] = executable,
                     ["pid"] = process.Id,
+                    ["port"] = port,
+                    ["mirror_url"] = $"http://localhost:{port}/",
                     ["touch_supported"] = false
                 }
             };

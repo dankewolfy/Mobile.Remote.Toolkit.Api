@@ -221,8 +221,9 @@ iniciativa de roadmap futura, fuera de alcance aquí.
 - ✅ **Fase 8 — Mirror real de iOS** (cerrada end-to-end el 2026-07-29, verificado con un iPad
   real): dos caminos disponibles según la conectividad del entorno — AirPlay vía UxPlay (código y
   binario listos, pendiente de WiFi compartido con el dispositivo en este entorno puntual) y
-  **mirror por USB vía IosScreenCaptureTool** (el que efectivamente funciona acá y quedó activo por
-  default). Ver Fase 8b más abajo para el camino que terminó funcionando.
+  **mirror por USB vía go-ios** (el que efectivamente funciona acá y quedó activo por default,
+  reemplazando a `IosScreenCaptureTool` — ver Fase 8c). Ver Fase 8b para el camino original y Fase
+  8c para por qué y cómo se reemplazó.
   **Binario**: no hay build oficial de UxPlay para Windows (solo fuente) ni un build de terceros
   utilizable — se probó [`leapbtw/uxplay-windows`](https://github.com/leapbtw/uxplay-windows) (única
   alternativa de terceros encontrada) y se descartó: es una app de bandeja Qt que ignora los
@@ -404,13 +405,57 @@ iniciativa de roadmap futura, fuera de alcance aquí.
   (confirmado con `tasklist`) → `status` vuelve a `mirror_active: false`. Sin ningún UAC visible en
   todo el flujo.
 
-- ⬜ **Fase 9 — Control táctil real de iOS vía go-ios + WebDriverAgent** (pendiente, bloqueada en
-  parte por necesitar Xcode/macOS para firmar WDA): hoy no existe ningún código de control, solo el
-  stub `capabilities.touch = false`. Ver detalle más abajo. **Actualización de la Fase 8b**: en
-  iOS 17+, instalar/hablarle a WDA muy probablemente necesite el mismo túnel "Remote Service
-  Discovery" de `pymobiledevice3` que requiere admin en Windows — repetir el patrón de las dos
-  Scheduled Tasks (o reusar/extender las mismas) en vez de correr la API elevada, salvo que
-  `go-ios` resuelva ese túnel de otra forma (a confirmar cuando se aborde esta fase).
+  ### Fase 8c — Reemplazo de la Fase 8b por go-ios (2026-07-31, superseded)
+
+  Motivo del reemplazo: leyendo el código fuente real de `IosScreenCaptureTool` (clonado a un
+  scratchpad para confirmar el protocolo exacto del pipe de comandos) se confirmó que, por dentro,
+  **tampoco era un mirror de video real** — `StreamLoopAsync` en `MainWindow.xaml.cs` ejecuta
+  `python -m pymobiledevice3 developer dvt screenshot --rsd <host> <port> <archivo>` en un loop, es
+  decir un proceso Python nuevo por cada frame sobre el servicio DVT de captura de pantalla de
+  Apple, no un feed de video continuo (nada de H.264). El "mirror real" que se pensaba haber
+  logrado en la Fase 8b en realidad seguía siendo capturas repetidas, solo que automatizadas.
+
+  Se investigó `danielpaulus/quicktime_video_hack` (el reverse-engineering del protocolo real que
+  usa QuickTime en Mac) como alternativa — **descartado**: nunca tuvo soporte Windows (issue
+  abierto sin respuesta desde 2022), roto en iOS 18, y necesitaría vendorizar GStreamer igual que
+  UxPlay.
+
+  En su lugar se adoptó **`go-ios`** (`danielpaulus/go-ios`, MIT, binario Go standalone, ya
+  contemplado para la Fase 9 de control táctil), que trae mirror integrado:
+  - `ios screenshot --stream --port=<puerto>` levanta un servidor HTTP MJPEG nativo — consumible
+    directo por un `<img src="http://host:puerto/">` desde cualquier navegador, no solo por una
+    ventana nativa dockeada en Electron. Por dentro llama al mismo servicio DTX de screenshot que
+    usaba `IosScreenCaptureTool`, así que el techo de fps es similar (~3-8 fps medidos en vivo con
+    el iPad de prueba), pero sin el bootstrap de Python/pip y sin la ventana WPF.
+  - `ios tunnel start --userspace` **no pide privilegios de administrador** — confirmado en vivo
+    (túnel negociado sin ningún prompt de UAC) — a diferencia del túnel "Remote Service Discovery"
+    de `pymobiledevice3`, que sí lo exigía y fue la razón de ser de las dos Scheduled Tasks
+    elevadas de la Fase 8b.
+
+  Verificado end-to-end contra la API real (no solo el CLI suelto) con el iPad conectado:
+  `POST mirror/start` → arranca el túnel compartido (una vez, vía `GoIosTunnelManager`) + el
+  proceso `ios screenshot --stream` (sin elevación) → `GET status` refleja `mirror_active: true` y
+  `mirror_url` → un `GET` HTTP normal contra esa URL devuelve multipart MJPEG con frames JPEG reales
+  → `POST mirror/stop` mata el proceso directo (`Process.Kill()`, ya no hace falta ninguna
+  Scheduled Task para pararlo, porque el proceso no corre elevado).
+
+  Limpieza asociada: se eliminó `Tools/iOS/mirror/iosscreencapture/` (vendor de
+  `IosScreenCaptureTool`, ~173 MB) y `IOS:Mirror:StartTaskName`/`StopTaskName`/`ProcessName` de
+  `appsettings.json`. Las dos Scheduled Tasks (`MobileRemoteToolkit_IosMirror_Start`/`_Stop`)
+  quedan pendientes de borrar en esta máquina — requiere una PowerShell elevada
+  (`schtasks /delete /tn "MobileRemoteToolkit_IosMirror_Start" /f`, ídem `_Stop`), no se pudo hacer
+  desde esta sesión sin privilegios. El código de docking de Electron
+  (`scrcpy-manager-vue/electron/main/windowManager.ts`, busca una ventana titulada "iOS Screen
+  Capture Tool") quedó como deuda pendiente — `go-ios` no abre ninguna ventana, así que ese código
+  ya no tiene efecto y habría que reemplazarlo por una vista que consuma `mirror_url` en vez de
+  dockear una ventana nativa; no se tocó en esta sesión.
+
+- ⬜ **Fase 9 — Control táctil + mirror h264 real vía go-ios/DeviceKit** (investigada y confirmada
+  viable a mano contra hardware real el 2026-08-03; falta la integración en código — ver detalle
+  completo más abajo, reemplaza por completo el esbozo especulativo original de esta fase).
+  Resumen: **sí se puede**, sin Mac corriendo en producción, con cuenta de Apple Developer paga;
+  requiere un paso manual **una sola vez por dispositivo** (parear con una Mac+Xcode reales) que no
+  se puede evitar con las herramientas actuales.
 
 ## Arquitectura objetivo
 
@@ -608,38 +653,123 @@ y configurarlo — igual patrón que ya existe para scrcpy con Android.
     quiere el mismo comportamiento para iOS habrá que enseñarle a reconocer también la ventana de
     UxPlay. Anotado como pendiente del lado del cliente, no se resuelve en este repo.
 
-## Fase 9 — Control táctil real de iOS vía go-ios + WebDriverAgent
+## Fase 9 — Control táctil + mirror h264 real vía go-ios/DeviceKit
 
 Objetivo: reemplazar el stub actual (`capabilities.touch` siempre `false`,
-ver `IOSDeviceService.GetDeviceStatusAsync`) por control táctil real. A diferencia de la Fase 8,
-esta sí requiere escribir código nuevo — hoy no existe ningún puerto/adapter de control, solo el
-mirror y las queries de info/estado.
+ver `IOSDeviceService.GetDeviceStatusAsync`) por control táctil real, y de paso reemplazar el
+mirror MJPEG actual (Fase 8c, ~3-8 fps porque por dentro sigue siendo el servicio de screenshot de
+Apple) por video h264 real de hardware. A diferencia de la Fase 8, esta sí requiere escribir código
+nuevo — hoy no existe ningún puerto/adapter de control, solo el mirror y las queries de info/estado.
 
-25. Instalar el binario standalone de [`go-ios`](https://github.com/danielpaulus/go-ios) en
-    `Tools/iOS/go-ios/` (mismo patrón de vendorizado que las fases anteriores).
-26. Con `go-ios`, parear el dispositivo, activar Developer Mode si hace falta, e instalar
-    `WebDriverAgent` en el iPad — documentar acá los comandos exactos una vez probados a mano,
-    antes de intentar automatizarlos desde la API.
-27. **Bloqueo real a resolver antes de seguir**: firmar el `.ipa` de `WebDriverAgent` requiere
-    Xcode → una Mac (o un servicio de firma en la nube) en el loop, aunque sea de forma periódica
-    (cada 7 días con Apple ID gratis, cada año con cuenta paga) y no una máquina corriendo en
-    producción. Sin resolver esto, el resto de la fase no se puede probar de punta a punta —
-    confirmar acceso a una Mac (propia, prestada, o un servicio como MacStadium/Xcode Cloud) antes
-    de avanzar con los puntos 28-30.
-28. Una vez WDA corre en el dispositivo, exponerlo por USB con `iproxy` (el binario ya está
-    vendorizado en `Tools/iOS/libimobiledevice/` desde la Fase 7 — confirmar si alcanza con ese o
-    hace falta uno vendorizado aparte junto a `go-ios`).
-29. Nuevo puerto en Application: `IIOSControlService` (a definir si conviene separado de
-    `IIOSDeviceService` o una extensión — evaluar en el momento, replicando la separación
-    mirror/control ya decidida en el Anexo de la Fase 7) con métodos tipo `TapAsync(udid, x, y)` /
-    `SwipeAsync(udid, from, to)`. Implementación en Infrastructure hablando HTTP contra la API REST
-    de WDA (XCUITest) — no emulación de puntero.
+### Qué se confirmó a mano contra un iPad real (2026-08-03) — ya no es especulativo
+
+`go-ios` (el mismo binario ya vendorizado en `Tools/iOS/go-ios/ios.exe` para el mirror de la
+Fase 8c) trae un segundo backend además de WDA: **DeviceKit** (`--driver=devicekit`, default).
+A diferencia de WDA (limitado a MJPEG, mismo techo que el mirror actual), DeviceKit expone:
+
+- `GET http://127.0.0.1:12004/h264?fps=30&quality=80` → **h264 real de hardware**, confirmado
+  inspeccionando los bytes crudos: unidades NAL con start code `00 00 00 01` seguidas de SPS
+  (`27`), PPS (`28`), SEI (`06`) e IDR (`05`) — la estructura real de un stream H.264, no capturas
+  de pantalla repetidas. ~730 KB en 5 s (~1.15 Mbps) a fps=30/quality=80 contra un iPad real.
+- `POST http://127.0.0.1:12004/rpc` (JSON-RPC 2.0) con métodos `device.io.tap`/`.swipe`/
+  `.longpress`/`.text`/`.button`/`.orientation.*`, `device.apps.launch/terminate/foreground`,
+  `device.screenshot`, `device.info`, `device.dump.ui` — **táctil real confirmado**: un
+  `ios ui tap --x=<x> --y=<y>` movió algo en la pantalla del iPad de prueba.
+- CLI cliente ya integrado en el mismo binario: `ios ui tap/swipe/stream/...` (ver
+  `ios help ui <comando>`), no hace falta hablar el protocolo JSON-RPC a mano si no se quiere.
+
+### La receta completa que funcionó (para no tener que redescubrirla)
+
+1. **Cuenta de Apple Developer Program de pago** (no alcanza un Apple ID gratis — confirmado,
+   `ios/signing/appstoreconnect.go` no tiene fallback). Generar una API Key en
+   appstoreconnect.apple.com → Users and Access → Integrations → App Store Connect API (rol Admin),
+   descargar el `.p8` (solo se puede una vez), anotar Key ID e Issuer ID.
+2. **Descargar los artefactos a mano, no con `ios ui download`**: el CDN de terceros
+   (`deviceboxhq.com`) devuelve `403 Forbidden` al User-Agent default de Go. Workaround:
+   ```
+   curl -A "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36" \
+     -o devicekit.ipa https://deviceboxhq.com/devicekit-ios-runner-0.0.18.ipa
+   ```
+   (mismo truco si además se quiere WDA, aunque no es necesario para esta fase — ver nota al final
+   sobre el bug de empaquetado que tiene ese camino).
+3. **Certificado + perfil de aprovisionamiento**, con un `--bundleid` propio (los defaults de
+   go-ios, `com.deviceboxhq.goios.*`, ya están registrados por el proveedor del CDN → `409
+   Conflict: ... is not available`):
+   ```
+   ios sign provision appstoreconnect --bundleid=com.<tuorg>.devicekit \
+     --asc-key-id=<ASC_KEY_ID> --asc-issuer-id=<ASC_ISSUER_ID> --asc-private-key=<ruta al .p8> \
+     --p12-output=devicekit.p12 --profile-output=devicekit.mobileprovision \
+     --device-name="<nombre del dispositivo>"
+   ```
+   **Apple solo permite un certificado `IOS_DEVELOPMENT` activo a la vez** — si se repite este
+   comando para otro bundle id (p.ej. si más adelante también se quiere WDA) va a fallar con
+   `409 Conflict: You already have a current iOS Development certificate`. Solución: reusar el
+   mismo certificado con `--certificate-id=<id>` (el `certificateID` que imprime el comando
+   anterior) — ese modo no crea un `.p12` nuevo, se reusa el que ya existe.
+4. **Instalar**: `ios ui install devicekit --path=devicekit.ipa --p12file=devicekit.p12 --profile=devicekit.mobileprovision --bundleid=com.<tuorg>.devicekit --output=devicekit-signed.ipa`.
+5. **Túnel** (igual que el mirror de la Fase 8c, sin elevación): `ios tunnel start --userspace`.
+6. **Bloqueo real, no evitable con las herramientas actuales**: lanzar DeviceKit vía
+   `ios ui run devicekit --bundleid=com.<tuorg>.devicekit` fallaba siempre igual —
+   `"Timed out waiting for response for message:5 channel:0"` /
+   `"An established connection was aborted by the software in your host machine"` — probado 6
+   veces: con túnel fresco, sin el mirror MJPEG corriendo en simultáneo, con la pantalla
+   desbloqueada confirmada, y después de un reboot completo del iPad. Mismo error, palabra por
+   palabra, reportado en
+   [go-ios#431](https://github.com/danielpaulus/go-ios/issues/431) — un colaborador ahí confirma
+   que no es un problema de instalación sino del handshake del protocolo de testing de Apple, y que
+   se resuelve **conectando el dispositivo una vez a una Mac real con Xcode** (abrir Xcode, Window →
+   Devices and Simulators, esperar que termine de "preparar" el dispositivo, y opcionalmente correr
+   cualquier app de prueba una vez). **Confirmado en este proyecto**: después de ese paso único, el
+   mismo comando (`ios ui run devicekit`) funcionó de inmediato desde Windows, sin volver a tocar la
+   Mac. go-ios tiene un issue abierto sin resolver preguntando por soporte de iOS 26+
+   ([go-ios#603](https://github.com/danielpaulus/go-ios/issues/603)) — el iPad de prueba corre iOS
+   27, así que es plausible que este handshake sea más frágil en versiones muy nuevas de iOS.
+7. Una vez corriendo (`ios ui run devicekit` queda en foreground, reenvía el puerto 12004), usar
+   `ios ui tap/swipe/stream h264/...` o pegarle directo al JSON-RPC en `127.0.0.1:12004/rpc`.
+
+**Nota sobre WDA**: se probó instalar WDA además de DeviceKit (reusando el mismo certificado) para
+descartar si el bloqueo del punto 6 era específico de DeviceKit. La instalación de WDA (artefacto
+`.zip`, a diferencia del `.ipa` de DeviceKit) falló con un bug distinto y no relacionado de
+empaquetado en `go-ios` (`"Failed to get bundle ID from .../wda-signed.ipa.ipa"`, doble extensión
+`.ipa.ipa`) — no se investigó más porque WDA de todas formas está limitado a MJPEG (mismo techo que
+ya tenemos) y no aporta nada sobre DeviceKit. No hace falta WDA para esta fase.
+
+### Lo que falta para integrarlo en el código (no hecho todavía, es el plan a seguir)
+
+25. Vendorizar `Tools/iOS/go-ios/` ya está hecho (Fase 8c) — no hay que agregar un binario nuevo,
+    `ios.exe` ya sabe hacer todo esto.
+26. Decidir dónde vive el manejo de credenciales de App Store Connect (Key ID/Issuer ID/`.p8`) —
+    **no comitear el `.p8` ni el `.p12` al repo** (son credenciales reales, aunque de una cuenta de
+    desarrollo). Evaluar `dotnet user-secrets`, variable de entorno, o un archivo fuera del repo
+    referenciado por ruta en `appsettings.Local.json` (gitignored). El `.mobileprovision` (sin
+    clave privada) sí se podría vendorizar si se quiere evitar volver a llamar a la API de Apple
+    cada vez, pero no es necesario — crear uno nuevo tarda segundos.
+27. Nuevo `GoIosDeviceKitManager` (mismo patrón que `GoIosTunnelManager` de la Fase 8c): mantiene
+    viva la sesión `ios ui run devicekit` (proceso de fondo único, reenvía el puerto 12004) en vez
+    de re-lanzarla en cada request.
+28. Nuevo modo de mirror (p.ej. `Mode = "go-ios-devicekit"`) que en vez de devolver `mirror_url`
+    (MJPEG, consumible con un `<img>` simple) devuelva la URL del stream h264
+    (`http://localhost:12004/h264?...`) — **el frontend no puede mostrar esto con un `<img>` como
+    hace hoy con el MJPEG**: h264 Annex-B crudo necesita un decoder (`VideoDecoder` de WebCodecs
+    hacia un `<canvas>`, o muxearlo a fragmented MP4 al vuelo para usar Media Source Extensions +
+    `<video>`) — esto es trabajo de frontend nuevo, no una extensión trivial de
+    `IOSControls.vue`/`mirrorWindow.ts`.
+29. Nuevo puerto en Application: `IIOSControlService` (o extender `IIOSDeviceService` — evaluar en
+    el momento, replicando la separación mirror/control ya decidida en el Anexo de la Fase 7) con
+    métodos tipo `TapAsync(udid, x, y)` / `SwipeAsync(udid, from, to)`. Implementación en
+    Infrastructure: llamar directo al JSON-RPC de DeviceKit por HTTP (`127.0.0.1:12004/rpc`) es más
+    barato que invocar `ios.exe ui tap` como subproceso por cada toque (ida y vuelta de proceso vs.
+    una request HTTP local).
 30. Decidir si esto se expone reusando `ExecuteIOSActionCommand` (ya tiene un switch por `action:
     "tap"/"swipe"` preparado en `IOSDeviceService.ExecuteActionAsync`, hoy cae al `default` "no
     soportada todavía") o con commands nuevos dedicados — replicar el patrón que ya use
     `StartMirrorCommand`/`ExecuteAndroidActionCommand` para no introducir un estilo distinto.
 31. Actualizar `GetIOSDeviceStatusQuery`/`GetDeviceStatusAsync` para que `capabilities.touch` pase
     a `true` una vez el control esté realmente disponible para ese dispositivo.
+32. Documentar como requisito operativo (no de código): el paso 6 de la receta (parear con una Mac
+    real) hay que rehacerlo si el registro de pairing del dispositivo se invalida (reset de red/
+    privacidad en el iPad, o un dispositivo nuevo) — no es un setup de una sola vez para siempre,
+    es una-sola-vez-por-dispositivo-hasta-que-se-despaire.
 
 ## Fase 10 (opcional, requiere decisión aparte) — Contrato HTTP de errores
 
@@ -673,4 +803,6 @@ aparte, coordinando el cambio con el cliente.
   `GET .../status` refleja `mirror_active`/PID mientras corre.
 - **Fase 9**: un `tap`/`swipe` real vía `ExecuteIOSActionCommand` (o el command dedicado que se
   elija) mueve algo en la pantalla del dispositivo; `capabilities.touch` pasa a `true` solo cuando
-  WDA está efectivamente corriendo para ese udid, no de forma global.
+  DeviceKit está efectivamente corriendo para ese udid, no de forma global; el nuevo endpoint de
+  mirror h264 se ve fluido en el frontend (no a los ~3-8 fps del MJPEG actual) una vez resuelto el
+  decoder del lado del cliente.

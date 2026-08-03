@@ -23,6 +23,9 @@ namespace Mobile.Remote.Toolkit.Application.Models.Responses.iOS
         public int ProcessId { get; set; }
 
         [DataMember]
+        public int? Port { get; set; }
+
+        [DataMember]
         public DateTime StartedAtUtc { get; set; }
     }
 }
