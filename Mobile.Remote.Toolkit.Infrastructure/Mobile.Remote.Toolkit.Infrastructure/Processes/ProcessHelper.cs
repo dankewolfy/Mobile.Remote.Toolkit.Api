@@ -72,6 +72,15 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Processes
                     _ => fileName
                 };
 
+                // Rutas configurables relativas a Tools/ (p.ej. IOS:Mirror:GoIosExecutable) no las
+                // resuelve Process.Start contra WorkingDirectory (mismo caso que en
+                // StartBackgroundProcessAsync), así que hay que combinarlas nosotros mismos.
+                var wasRelativeToolPath = actualFileName == fileName
+                    && !Path.IsPathRooted(actualFileName)
+                    && (actualFileName.Contains('\\') || actualFileName.Contains('/'));
+                if (wasRelativeToolPath)
+                    actualFileName = Path.Combine(_toolsPath, actualFileName);
+
                 _logger.LogInformation($"Ejecutando: {actualFileName} {arguments}");
 
                 // Solo validamos existencia cuando resolvimos a una ruta vendorizada conocida

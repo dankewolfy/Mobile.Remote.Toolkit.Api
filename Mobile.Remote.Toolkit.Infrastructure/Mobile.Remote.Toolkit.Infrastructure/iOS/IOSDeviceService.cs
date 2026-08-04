@@ -481,17 +481,36 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 if (string.IsNullOrWhiteSpace(filename))
                 {
                     var timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-                    filename = $"screenshot_ios_{LastChars(udid, 8)}_{timestamp}.tiff";
+                    filename = $"screenshot_ios_{LastChars(udid, 8)}_{timestamp}.png";
                 }
 
                 filename = Path.GetFileName(filename);
                 if (string.IsNullOrWhiteSpace(Path.GetExtension(filename)))
-                    filename += ".tiff";
+                    filename += ".png";
 
                 var fullPath = Path.Combine(screenshotsFolder, filename);
+
+                // idevicescreenshot (libimobiledevice clasico) requiere su propia Developer Disk
+                // Image montada via el servicio screenshotr - separada del tunel/DDI que ya
+                // gestiona go-ios para mirror+control (Fase 9). En la practica esa DDI clasica no
+                // esta montada y el comando falla siempre; "ios screenshot" reusa el mismo tunel
+                // ya establecido por go-ios, que si funciona en vivo.
+                var executable = _configuration["IOS:Mirror:GoIosExecutable"];
+                if (string.IsNullOrWhiteSpace(executable))
+                {
+                    return new ActionResponse
+                    {
+                        Success = false,
+                        Message = "Screenshot iOS requiere configuracion",
+                        Error = "Configure IOS:Mirror:GoIosExecutable en appsettings."
+                    };
+                }
+
+                await _tunnelManager.EnsureRunningAsync(_processHelper, executable);
+
                 var result = await _processHelper.ExecuteCommandAsync(
-                    "idevicescreenshot",
-                    $"-u {QuoteArg(udid)} {QuoteArg(fullPath)}",
+                    executable,
+                    $"screenshot --output={QuoteArg(fullPath)} --udid={QuoteArg(udid)}",
                     timeoutSeconds: 60);
 
                 var fileInfo = new FileInfo(fullPath);
@@ -522,7 +541,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                         ["full_path"] = fullPath,
                         ["folder"] = screenshotsFolder,
                         ["size"] = fileInfo.Length,
-                        ["content_type"] = "image/tiff"
+                        ["content_type"] = "image/png"
                     }
                 };
             }
