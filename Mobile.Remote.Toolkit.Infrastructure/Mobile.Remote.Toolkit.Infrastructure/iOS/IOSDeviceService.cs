@@ -15,6 +15,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
     {
         private readonly IOSMirrorProcessRegistry _mirrorRegistry;
         private readonly GoIosTunnelManager _tunnelManager;
+        private readonly GoIosDeviceKitManager _deviceKitManager;
+        private readonly IIOSControlService _controlService;
         private readonly IProcessHelper _processHelper;
         private readonly INotificationService _notificationService;
         private readonly IConfiguration _configuration;
@@ -23,6 +25,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
         public IOSDeviceService(
             IOSMirrorProcessRegistry mirrorRegistry,
             GoIosTunnelManager tunnelManager,
+            GoIosDeviceKitManager deviceKitManager,
+            IIOSControlService controlService,
             IProcessHelper processHelper,
             INotificationService notificationService,
             IConfiguration configuration,
@@ -30,6 +34,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
         {
             _mirrorRegistry = mirrorRegistry;
             _tunnelManager = tunnelManager;
+            _deviceKitManager = deviceKitManager;
+            _controlService = controlService;
             _processHelper = processHelper;
             _notificationService = notificationService;
             _configuration = configuration;
@@ -96,6 +102,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
             var connectedDevices = await GetConnectedDevicesAsync();
             var isConnected = connectedDevices.Any(d => d.Udid.Equals(udid, StringComparison.OrdinalIgnoreCase));
             var session = _mirrorRegistry.GetAlive(udid);
+            var touchAvailable = await _controlService.IsAvailableAsync(udid);
 
             var status = new Dictionary<string, object>
             {
@@ -108,8 +115,10 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 {
                     ["screenshot"] = true,
                     ["mirror"] = true,
-                    ["touch"] = false,
-                    ["touch_note"] = "Pendiente: requiere WebDriverAgent/Appium, iPhone Mirroring en macOS o una integracion especifica."
+                    ["touch"] = touchAvailable,
+                    ["touch_note"] = touchAvailable
+                        ? "Control tactil real via DeviceKit (go-ios)."
+                        : "Requiere mirror con mode=go-ios-devicekit corriendo para este dispositivo (DeviceKit instalado y firmado, ver appsettings IOS:DeviceKit)."
                 }
             };
 
@@ -120,7 +129,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 status["mirror_executable"] = session.Executable;
 
                 if (session.Port.HasValue)
-                    status["mirror_url"] = $"http://localhost:{session.Port.Value}/";
+                    status["mirror_url"] = $"http://localhost:{session.Port.Value}{session.StreamPath}";
             }
 
             return status;
@@ -133,11 +142,16 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 "start_mirror" => await StartMirrorAsync(udid, options ?? payload),
                 "stop_mirror" => await StopMirrorAsync(udid),
                 "screenshot" => await TakeScreenshotAsync(udid, payload?.GetValueOrDefault("filename")?.ToString()),
+                "tap" => await _controlService.TapAsync(udid, GetDouble(payload, "x"), GetDouble(payload, "y")),
+                "swipe" => await ExecuteSwipeAsync(udid, payload),
+                "long_press" => await _controlService.LongPressAsync(udid, GetDouble(payload, "x"), GetDouble(payload, "y"), GetInt(payload, "duration_ms")),
+                "type_text" => await _controlService.TypeTextAsync(udid, GetOption(NormalizeOptions(payload), "text") ?? string.Empty),
+                "button" => await _controlService.PressButtonAsync(udid, GetOption(NormalizeOptions(payload), "name") ?? string.Empty),
                 _ => new ActionResponse
                 {
                     Success = false,
                     Message = "Accion iOS no soportada todavia",
-                    Error = "Por ahora iOS soporta start_mirror, stop_mirror y screenshot. Touch/control queda para una siguiente fase."
+                    Error = "Acciones soportadas: start_mirror, stop_mirror, screenshot, tap, swipe, long_press, type_text, button."
                 }
             };
         }
@@ -166,6 +180,9 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 
                 if (string.Equals(mode, "go-ios", StringComparison.OrdinalIgnoreCase))
                     return await StartMirrorViaGoIosAsync(udid, mode);
+
+                if (string.Equals(mode, "go-ios-devicekit", StringComparison.OrdinalIgnoreCase))
+                    return await StartMirrorViaDeviceKitAsync(udid, mode);
 
                 var executable = GetOption(opts, "executable")
                     ?? GetOption(opts, "toolPath")
@@ -248,10 +265,20 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     return new ActionResponse { Success = true, Message = "No hay mirror iOS activo para este dispositivo" };
 
                 // A diferencia del viejo mirror por IosScreenCaptureTool (corria elevado via Scheduled
-                // Task), "ios screenshot --stream" de go-ios corre sin privilegios especiales - se puede
-                // matar directo, sin ningun mecanismo de Scheduled Task de por medio.
-                if (!session.Process.HasExited)
+                // Task), tanto "ios screenshot --stream" como "ios ui run devicekit" de go-ios corren
+                // sin privilegios especiales - se pueden matar directo, sin ningun mecanismo de
+                // Scheduled Task de por medio.
+                if (string.Equals(session.Mode, "go-ios-devicekit", StringComparison.OrdinalIgnoreCase))
+                {
+                    // DeviceKit sirve mirror h264 y control tactil desde el mismo proceso - pararlo
+                    // tambien deja sin efecto el control tactil para este udid (capabilities.touch
+                    // vuelve a false en la proxima consulta de estado).
+                    _deviceKitManager.StopIfRunningFor(udid);
+                }
+                else if (!session.Process.HasExited)
+                {
                     session.Process.Kill();
+                }
 
                 session.Process.Dispose();
 
@@ -315,6 +342,132 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     ["touch_supported"] = false
                 }
             };
+        }
+
+        private async Task<ActionResponse> StartMirrorViaDeviceKitAsync(string udid, string mode)
+        {
+            // DeviceKit ("ios ui run devicekit", backend --driver=devicekit de go-ios) sirve h264
+            // real de hardware y el JSON-RPC de control tactil desde el mismo proceso/puerto - por
+            // eso arrancar el mirror en este modo tambien deja listo el control (tap/swipe/etc.)
+            // para el mismo udid, a diferencia del mirror MJPEG (go-ios "screenshot --stream"), que
+            // no expone ningun control.
+            var executable = _configuration["IOS:DeviceKit:Executable"] ?? _configuration["IOS:Mirror:GoIosExecutable"];
+            var bundleId = _configuration["IOS:DeviceKit:BundleId"];
+
+            if (string.IsNullOrWhiteSpace(executable) || string.IsNullOrWhiteSpace(bundleId))
+            {
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "Mirror iOS via DeviceKit requiere configuracion",
+                    Error = "Configure IOS:DeviceKit:Executable e IOS:DeviceKit:BundleId en appsettings (requiere DeviceKit instalado y firmado en el dispositivo, ver receta de la Fase 9)."
+                };
+            }
+
+            if (!int.TryParse(_configuration["IOS:DeviceKit:Port"], out var port))
+                port = 12004;
+
+            var fps = _configuration["IOS:DeviceKit:Fps"] ?? "30";
+            var quality = _configuration["IOS:DeviceKit:Quality"] ?? "80";
+
+            await _tunnelManager.EnsureRunningAsync(_processHelper, executable);
+            var process = await _deviceKitManager.EnsureRunningAsync(_processHelper, executable, bundleId, udid);
+
+            if (!await WaitForDeviceKitReadyAsync(udid, process))
+            {
+                _deviceKitManager.StopIfRunningFor(udid);
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "DeviceKit no respondio a tiempo",
+                    Error = "El proceso 'ios ui run devicekit' se lanzo pero no respondio via RPC tras varios intentos. " +
+                        "Puede ser el handshake de testing de Apple fallando (ver receta Fase 9, punto 6): probar " +
+                        "reconectar el cable USB, desbloquear la pantalla del dispositivo, o re-parear con una Mac real " +
+                        "con Xcode si el problema persiste."
+                };
+            }
+
+            var streamPath = $"/h264?fps={fps}&quality={quality}";
+            var arguments = $"ui run devicekit --bundleid={bundleId} --udid={udid}";
+            _mirrorRegistry.Register(udid, process, mode, executable, arguments, port, streamPath);
+
+            await _notificationService.NotifyMirrorStarted(udid);
+
+            return new ActionResponse
+            {
+                Success = true,
+                Message = "Mirror iOS iniciado correctamente (via DeviceKit, h264)",
+                Data = new Dictionary<string, object>
+                {
+                    ["udid"] = udid,
+                    ["mode"] = mode,
+                    ["executable"] = executable,
+                    ["pid"] = process.Id,
+                    ["port"] = port,
+                    ["mirror_url"] = $"http://localhost:{port}{streamPath}",
+                    ["stream_format"] = "h264-annexb",
+                    ["touch_supported"] = true
+                }
+            };
+        }
+
+        // El mirror window (mirrorWindow.ts) grava la ruta real del drag y la manda en
+        // payload.points ({x,y,t} con t relativo en ms) - si viene, se reproduce tal cual en
+        // vez de interpolar una linea recta entre from/to (fallback para llamados directos
+        // sin ruta grabada, p.ej. desde Swagger).
+        private async Task<ActionResponse> ExecuteSwipeAsync(string udid, Dictionary<string, object> payload)
+        {
+            var points = GetSwipePoints(payload, "points");
+            if (points != null && points.Count >= 2)
+                return await _controlService.SwipePathAsync(udid, points);
+
+            return await _controlService.SwipeAsync(
+                udid,
+                GetDouble(payload, "from_x"),
+                GetDouble(payload, "from_y"),
+                GetDouble(payload, "to_x"),
+                GetDouble(payload, "to_y"),
+                GetInt(payload, "duration_ms"));
+        }
+
+        private static List<(double X, double Y, double TimeOffsetSeconds)> GetSwipePoints(Dictionary<string, object> payload, string key)
+        {
+            if (payload == null
+                || !payload.TryGetValue(key, out var value)
+                || value is not System.Text.Json.JsonElement element
+                || element.ValueKind != System.Text.Json.JsonValueKind.Array)
+                return null;
+
+            var points = new List<(double X, double Y, double TimeOffsetSeconds)>();
+            foreach (var item in element.EnumerateArray())
+            {
+                var x = item.TryGetProperty("x", out var xEl) ? xEl.GetDouble() : 0;
+                var y = item.TryGetProperty("y", out var yEl) ? yEl.GetDouble() : 0;
+                var tMs = item.TryGetProperty("t", out var tEl) ? tEl.GetDouble() : 0;
+                points.Add((x, y, tMs / 1000.0));
+            }
+
+            return points;
+        }
+
+        private async Task<bool> WaitForDeviceKitReadyAsync(string udid, Process process, int maxAttempts = 8, int delayMs = 500)
+        {
+            for (var attempt = 0; attempt < maxAttempts; attempt++)
+            {
+                if (process.HasExited)
+                {
+                    _logger.LogWarning("[DeviceKit] Proceso para {Udid} termino inesperadamente (ExitCode={Code}) mientras se esperaba que quedara listo", udid, process.ExitCode);
+                    return false;
+                }
+
+                if (await _controlService.IsAvailableAsync(udid))
+                    return true;
+
+                await Task.Delay(delayMs);
+            }
+
+            _logger.LogWarning("[DeviceKit] {Udid} no respondio via RPC despues de {Attempts} intentos", udid, maxAttempts);
+            return false;
         }
 
         public async Task<ActionResponse> TakeScreenshotAsync(string udid, string filename = null)
@@ -413,6 +566,28 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     : jsonElement.ToString();
 
             return value.ToString();
+        }
+
+        private static double GetDouble(Dictionary<string, object> payload, string key, double defaultValue = 0)
+        {
+            if (payload == null || !payload.TryGetValue(key, out var value) || value == null)
+                return defaultValue;
+
+            if (value is System.Text.Json.JsonElement jsonElement)
+                return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number ? jsonElement.GetDouble() : defaultValue;
+
+            return Convert.ToDouble(value);
+        }
+
+        private static int? GetInt(Dictionary<string, object> payload, string key)
+        {
+            if (payload == null || !payload.TryGetValue(key, out var value) || value == null)
+                return null;
+
+            if (value is System.Text.Json.JsonElement jsonElement)
+                return jsonElement.ValueKind == System.Text.Json.JsonValueKind.Number ? jsonElement.GetInt32() : null;
+
+            return Convert.ToInt32(value);
         }
 
         private static string LastChars(string value, int count)

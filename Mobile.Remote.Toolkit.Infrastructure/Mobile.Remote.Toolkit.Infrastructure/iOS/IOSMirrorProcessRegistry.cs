@@ -17,7 +17,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
             _logger = logger;
         }
 
-        public void Register(string udid, Process process, string mode, string executable, string arguments, int? port = null)
+        public void Register(string udid, Process process, string mode, string executable, string arguments, int? port = null, string streamPath = "/")
         {
             try
             {
@@ -46,6 +46,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 Executable = executable,
                 Arguments = arguments,
                 Port = port,
+                StreamPath = streamPath,
                 StartedAtUtc = DateTime.UtcNow
             };
         }
@@ -83,6 +84,7 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
         public string Executable { get; set; }
         public string Arguments { get; set; }
         public int? Port { get; set; }
+        public string StreamPath { get; set; } = "/";
         public Process Process { get; set; }
         public DateTime StartedAtUtc { get; set; }
 

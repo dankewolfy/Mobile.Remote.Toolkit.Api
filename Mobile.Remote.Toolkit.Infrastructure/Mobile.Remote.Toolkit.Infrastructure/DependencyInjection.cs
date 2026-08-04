@@ -27,6 +27,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure
             // iOS
             services.AddSingleton<IOSMirrorProcessRegistry>();
             services.AddSingleton<GoIosTunnelManager>();
+            services.AddSingleton<GoIosDeviceKitManager>();
+            services.AddScoped<IIOSControlService, IOSControlService>();
             services.AddScoped<IIOSDeviceService, IOSDeviceService>();
 
             // Procesos y filesystem
