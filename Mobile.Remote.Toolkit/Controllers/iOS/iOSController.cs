@@ -87,5 +87,21 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
         {
             return Ok(new { success = true, sessions = new List<object>() });
         }
+
+        [HttpGet("drivers/status")]
+        public async Task<ActionResult<IOSDriverStatusResponse>> GetDriverStatus()
+        {
+            var query = new GetIOSDriverStatusQuery();
+            var result = await Mediator.Send(query);
+            return Ok(result);
+        }
+
+        [HttpPost("drivers/install")]
+        public async Task<ActionResult<ActionResponse>> InstallDriver()
+        {
+            var command = new InstallIOSDriverCommand();
+            var result = await Mediator.Send(command);
+            return Ok(result);
+        }
     }
 }

@@ -31,6 +31,15 @@ namespace Mobile.Remote.Toolkit.Infrastructure
             services.AddScoped<IIOSControlService, IOSControlService>();
             services.AddScoped<IIOSDeviceService, IOSDeviceService>();
 
+            if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+            {
+                services.AddScoped<IIOSDriverService, WindowsIosDriverService>();
+            }
+            else
+            {
+                services.AddScoped<IIOSDriverService, UnsupportedIosDriverService>();
+            }
+
             // Procesos y filesystem
             services.AddScoped<IProcessHelper>(provider =>
             {
