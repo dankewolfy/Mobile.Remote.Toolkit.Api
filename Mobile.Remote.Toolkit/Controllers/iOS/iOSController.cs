@@ -103,5 +103,13 @@ namespace Mobile.Remote.Toolkit.Api.Controllers.iOS
             var result = await Mediator.Send(command);
             return Ok(result);
         }
+
+        [HttpPost("devices/{udid}/devicekit/install")]
+        public async Task<ActionResult<ActionResponse>> InstallDeviceKit(string udid)
+        {
+            var command = new InstallIOSDeviceKitCommand { Udid = udid };
+            var result = await Mediator.Send(command);
+            return Ok(result);
+        }
     }
 }

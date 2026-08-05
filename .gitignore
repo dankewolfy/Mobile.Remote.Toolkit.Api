@@ -331,3 +331,9 @@ ASALocalRun/
 
 # go-ios: identidad local del tunel (clave privada), se regenera sola con "ios tunnel start"
 Tools/iOS/go-ios/selfIdentity.plist
+
+# DeviceKit: material de firma/credenciales - nunca deberia vivir dentro del repo (el .ipa base,
+# la App Store Connect API key y la llave SSH del Mac firmante viven en %AppData%\MobileRemoteToolkit)
+*.p8
+*.p12
+*.mobileprovision

@@ -30,6 +30,9 @@ namespace Mobile.Remote.Toolkit.Infrastructure
             services.AddSingleton<GoIosDeviceKitManager>();
             services.AddScoped<IIOSControlService, IOSControlService>();
             services.AddScoped<IIOSDeviceService, IOSDeviceService>();
+            services.AddScoped<IAppleAppStoreConnectClient, AppleAppStoreConnectClient>();
+            services.AddScoped<IMacSigningService, MacSigningService>();
+            services.AddScoped<IIOSDeviceKitInstallService, IOSDeviceKitInstallService>();
 
             if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
             {

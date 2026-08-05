@@ -56,6 +56,12 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
             }
         }
 
+        public async Task<ProcessResult> InstallAppAsync(IProcessHelper processHelper, string executable, string ipaPath, string udid)
+        {
+            _logger.LogInformation("[DeviceKit] Instalando {IpaPath} en {Udid}", ipaPath, udid);
+            return await processHelper.ExecuteCommandAsync(executable, $"install --path=\"{ipaPath}\" --udid={udid}", timeoutSeconds: 120);
+        }
+
         public void StopIfRunningFor(string udid)
         {
             if (!IsRunningFor(udid))
