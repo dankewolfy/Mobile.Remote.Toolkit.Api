@@ -13,6 +13,8 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
     // el paso manual "parear con una Mac+Xcode reales" que antes había que hacer por dispositivo.
     public class IOSDeviceKitInstallService : IIOSDeviceKitInstallService
     {
+        private static readonly HttpClient HttpClient = new();
+
         private readonly IAppleAppStoreConnectClient _appleClient;
         private readonly IMacSigningService _macSigningService;
         private readonly GoIosDeviceKitManager _deviceKitManager;
@@ -38,6 +40,52 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
 
         public async Task<ActionResponse> InstallAsync(string udid)
         {
+            var executable = _configuration["IOS:DeviceKit:Executable"] ?? _configuration["IOS:Mirror:GoIosExecutable"];
+            if (string.IsNullOrWhiteSpace(executable))
+            {
+                return new ActionResponse
+                {
+                    Success = false,
+                    Message = "DeviceKit no se pudo instalar",
+                    Error = "Configure IOS:DeviceKit:Executable o IOS:Mirror:GoIosExecutable en appsettings."
+                };
+            }
+
+            // Camino rapido - no requiere App Store Connect ni el Mac remoto, asi que cualquier
+            // maquina del equipo (sin ninguna credencial configurada) puede usarlo tal cual: si no
+            // hay .ipa pre-firmado en cache todavia, se descarga del GitHub Release publico (no
+            // requiere token, el repo es publico); si el dispositivo ya esta en su lista de UDIDs,
+            // instala directo. Solo cae al flujo completo (mas abajo, ese si necesita credenciales)
+            // si el dispositivo es nuevo y "ios install" lo rechaza por provisioning profile invalido.
+            var preSignedIpaPath = ExpandPath(_configuration["IOS:DeviceKit:PreSignedIpaPath"]);
+            if (!string.IsNullOrWhiteSpace(preSignedIpaPath))
+            {
+                if (!File.Exists(preSignedIpaPath))
+                    await TryDownloadPreSignedIpaAsync(preSignedIpaPath);
+
+                if (File.Exists(preSignedIpaPath))
+                {
+                    _logger.LogInformation("[DeviceKit] Probando instalar con el .ipa ya firmado (sin App Store Connect)");
+                    var quickInstallResult = await _deviceKitManager.InstallAppAsync(_processHelper, executable, preSignedIpaPath, udid);
+                    if (quickInstallResult.Success)
+                    {
+                        return new ActionResponse
+                        {
+                            Success = true,
+                            Message = "DeviceKit instalado correctamente (ipa ya firmado)",
+                            Data = new Dictionary<string, object> { ["udid"] = udid }
+                        };
+                    }
+
+                    _logger.LogInformation(
+                        "[DeviceKit] El .ipa ya firmado no sirvio para {Udid} (probablemente dispositivo nuevo) - probando el flujo completo: {Error}",
+                        udid, quickInstallResult.Error);
+                }
+            }
+
+            // A partir de aqui hace falta el flujo completo (enrolar+firmar) - esto SI requiere
+            // App Store Connect y el Mac remoto, solo pasa en la maquina "admin" que enrola
+            // dispositivos nuevos, no en cada instalacion del equipo.
             // IMPORTANTE: el .ipa base debe ser devicekit-ios 0.0.18 o anterior (release de
             // mobile-next/devicekit-ios) - la 0.0.19 (2026-06-14) saco el streaming H264 a otro
             // repo, dejando solo MJPEG en este binario. Un .ipa post-0.0.19 aca hace que
@@ -51,44 +99,11 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 {
                     Success = false,
                     Message = "DeviceKit no se pudo instalar",
-                    Error = "Configure IOS:DeviceKit:BaseIpaPath en appsettings apuntando al .ipa base de DeviceKit " +
-                        "(fuera del repo, ver %AppData%\\MobileRemoteToolkit) - usar devicekit-ios 0.0.18 o anterior."
+                    Error = "Este dispositivo no esta en el .ipa pre-firmado todavia y necesita enrolarse. " +
+                        "Configure IOS:DeviceKit:BaseIpaPath en appsettings apuntando al .ipa base de DeviceKit " +
+                        "(fuera del repo, ver %AppData%\\MobileRemoteToolkit) - usar devicekit-ios 0.0.18 o anterior. " +
+                        "Esto solo hace falta en la maquina que enrola dispositivos nuevos."
                 };
-            }
-
-            var executable = _configuration["IOS:DeviceKit:Executable"] ?? _configuration["IOS:Mirror:GoIosExecutable"];
-            if (string.IsNullOrWhiteSpace(executable))
-            {
-                return new ActionResponse
-                {
-                    Success = false,
-                    Message = "DeviceKit no se pudo instalar",
-                    Error = "Configure IOS:DeviceKit:Executable o IOS:Mirror:GoIosExecutable en appsettings."
-                };
-            }
-
-            // Camino rapido: si ya existe un .ipa pre-firmado (de una instalacion anterior) y el
-            // dispositivo ya esta en su lista de UDIDs, esto instala sin tocar App Store Connect
-            // ni el Mac remoto en absoluto. Solo cae al flujo completo (mas abajo) si el dispositivo
-            // es nuevo y "ios install" lo rechaza por provisioning profile invalido.
-            var preSignedIpaPath = ExpandPath(_configuration["IOS:DeviceKit:PreSignedIpaPath"]);
-            if (!string.IsNullOrWhiteSpace(preSignedIpaPath) && File.Exists(preSignedIpaPath))
-            {
-                _logger.LogInformation("[DeviceKit] Probando instalar con el .ipa ya firmado (sin App Store Connect)");
-                var quickInstallResult = await _deviceKitManager.InstallAppAsync(_processHelper, executable, preSignedIpaPath, udid);
-                if (quickInstallResult.Success)
-                {
-                    return new ActionResponse
-                    {
-                        Success = true,
-                        Message = "DeviceKit instalado correctamente (ipa ya firmado)",
-                        Data = new Dictionary<string, object> { ["udid"] = udid }
-                    };
-                }
-
-                _logger.LogInformation(
-                    "[DeviceKit] El .ipa ya firmado no sirvio para {Udid} (probablemente dispositivo nuevo) - probando el flujo completo: {Error}",
-                    udid, quickInstallResult.Error);
             }
 
             try
@@ -154,6 +169,29 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                     Message = "DeviceKit no se pudo instalar",
                     Error = ex.Message
                 };
+            }
+        }
+
+        private async Task TryDownloadPreSignedIpaAsync(string destinationPath)
+        {
+            var downloadUrl = _configuration["IOS:DeviceKit:PreSignedIpaDownloadUrl"];
+            if (string.IsNullOrWhiteSpace(downloadUrl))
+                return;
+
+            try
+            {
+                _logger.LogInformation("[DeviceKit] Descargando .ipa pre-firmado desde {Url}", downloadUrl);
+                var directory = Path.GetDirectoryName(destinationPath);
+                if (!string.IsNullOrEmpty(directory))
+                    Directory.CreateDirectory(directory);
+
+                var bytes = await HttpClient.GetByteArrayAsync(downloadUrl);
+                await File.WriteAllBytesAsync(destinationPath, bytes);
+                _logger.LogInformation("[DeviceKit] .ipa pre-firmado descargado ({Bytes} bytes)", bytes.Length);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "[DeviceKit] No se pudo descargar el .ipa pre-firmado desde {Url} - se intentara el flujo completo", downloadUrl);
             }
         }
 
