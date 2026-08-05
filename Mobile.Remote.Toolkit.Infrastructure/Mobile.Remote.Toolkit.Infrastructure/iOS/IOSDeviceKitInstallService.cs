@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Text.Json;
+
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging;
 
@@ -51,12 +54,14 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 };
             }
 
-            // Camino rapido - no requiere App Store Connect ni el Mac remoto, asi que cualquier
-            // maquina del equipo (sin ninguna credencial configurada) puede usarlo tal cual: si no
-            // hay .ipa pre-firmado en cache todavia, se descarga del GitHub Release publico (no
-            // requiere token, el repo es publico); si el dispositivo ya esta en su lista de UDIDs,
-            // instala directo. Solo cae al flujo completo (mas abajo, ese si necesita credenciales)
-            // si el dispositivo es nuevo y "ios install" lo rechaza por provisioning profile invalido.
+            // Camino rapido - no requiere App Store Connect ni el Mac remoto, solo un token de
+            // GitHub de solo-lectura (repo privado dedicado, ver IOS:DeviceKit:GitHubTokenPath) para
+            // bajar el .ipa si no esta en cache todavia; si el dispositivo ya esta en su lista de
+            // UDIDs, instala directo. Solo cae al flujo completo (mas abajo, ese si necesita
+            // credenciales de App Store Connect/Mac) si el dispositivo es nuevo y "ios install" lo
+            // rechaza por provisioning profile invalido. El .ipa firmado trae embebido el
+            // provisioning profile (lista de UDIDs + Team ID) - por eso el repo/release es privado,
+            // no publico (ver receta de distribucion en memoria del proyecto).
             var preSignedIpaPath = ExpandPath(_configuration["IOS:DeviceKit:PreSignedIpaPath"]);
             if (!string.IsNullOrWhiteSpace(preSignedIpaPath))
             {
@@ -172,26 +177,82 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
             }
         }
 
+        // El .ipa firmado trae embebido el provisioning profile (lista de UDIDs enrolados + Team ID
+        // de la cuenta Apple Developer) - vive en un repo PRIVADO dedicado (no en el repo principal,
+        // publico), asi que la descarga necesita autenticarse con un token de GitHub de solo-lectura
+        // via la API (no una URL directa de "browser_download_url", esa no funciona sin auth para
+        // repos privados).
         private async Task TryDownloadPreSignedIpaAsync(string destinationPath)
         {
-            var downloadUrl = _configuration["IOS:DeviceKit:PreSignedIpaDownloadUrl"];
-            if (string.IsNullOrWhiteSpace(downloadUrl))
+            var repo = _configuration["IOS:DeviceKit:PreSignedIpaRepo"];
+            var tag = _configuration["IOS:DeviceKit:PreSignedIpaReleaseTag"];
+            var assetName = _configuration["IOS:DeviceKit:PreSignedIpaAssetName"];
+            var tokenPath = ExpandPath(_configuration["IOS:DeviceKit:GitHubTokenPath"]);
+
+            if (string.IsNullOrWhiteSpace(repo) || string.IsNullOrWhiteSpace(tag) || string.IsNullOrWhiteSpace(assetName))
                 return;
+
+            if (string.IsNullOrWhiteSpace(tokenPath) || !File.Exists(tokenPath))
+            {
+                _logger.LogWarning("[DeviceKit] No se encontro el token de GitHub en {Path} - no se puede descargar el .ipa pre-firmado", tokenPath);
+                return;
+            }
 
             try
             {
-                _logger.LogInformation("[DeviceKit] Descargando .ipa pre-firmado desde {Url}", downloadUrl);
+                var token = (await File.ReadAllTextAsync(tokenPath)).Trim();
+
+                _logger.LogInformation("[DeviceKit] Buscando el release '{Tag}' en {Repo}", tag, repo);
+                using var releaseRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo}/releases/tags/{tag}");
+                releaseRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                releaseRequest.Headers.UserAgent.ParseAdd("MobileRemoteToolkit");
+                releaseRequest.Headers.Accept.ParseAdd("application/vnd.github+json");
+
+                using var releaseResponse = await HttpClient.SendAsync(releaseRequest);
+                var releaseBody = await releaseResponse.Content.ReadAsStringAsync();
+                if (!releaseResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("[DeviceKit] No se pudo consultar el release ({Status}): {Body}", releaseResponse.StatusCode, releaseBody);
+                    return;
+                }
+
+                using var releaseDoc = JsonDocument.Parse(releaseBody);
+                var assetId = releaseDoc.RootElement.GetProperty("assets").EnumerateArray()
+                    .Where(a => string.Equals(a.GetProperty("name").GetString(), assetName, StringComparison.OrdinalIgnoreCase))
+                    .Select(a => (long?)a.GetProperty("id").GetInt64())
+                    .FirstOrDefault();
+
+                if (assetId is null)
+                {
+                    _logger.LogWarning("[DeviceKit] El release '{Tag}' no tiene un asset llamado '{AssetName}'", tag, assetName);
+                    return;
+                }
+
+                _logger.LogInformation("[DeviceKit] Descargando .ipa pre-firmado (asset {AssetId})", assetId);
+                using var assetRequest = new HttpRequestMessage(HttpMethod.Get, $"https://api.github.com/repos/{repo}/releases/assets/{assetId}");
+                assetRequest.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+                assetRequest.Headers.UserAgent.ParseAdd("MobileRemoteToolkit");
+                assetRequest.Headers.Accept.ParseAdd("application/octet-stream");
+
+                using var assetResponse = await HttpClient.SendAsync(assetRequest);
+                if (!assetResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("[DeviceKit] No se pudo descargar el asset ({Status})", assetResponse.StatusCode);
+                    return;
+                }
+
+                var bytes = await assetResponse.Content.ReadAsByteArrayAsync();
+
                 var directory = Path.GetDirectoryName(destinationPath);
                 if (!string.IsNullOrEmpty(directory))
                     Directory.CreateDirectory(directory);
 
-                var bytes = await HttpClient.GetByteArrayAsync(downloadUrl);
                 await File.WriteAllBytesAsync(destinationPath, bytes);
                 _logger.LogInformation("[DeviceKit] .ipa pre-firmado descargado ({Bytes} bytes)", bytes.Length);
             }
             catch (Exception ex)
             {
-                _logger.LogWarning(ex, "[DeviceKit] No se pudo descargar el .ipa pre-firmado desde {Url} - se intentara el flujo completo", downloadUrl);
+                _logger.LogWarning(ex, "[DeviceKit] No se pudo descargar el .ipa pre-firmado - se intentara el flujo completo");
             }
         }
 
