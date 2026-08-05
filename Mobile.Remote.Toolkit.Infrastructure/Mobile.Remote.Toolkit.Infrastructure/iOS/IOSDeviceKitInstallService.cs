@@ -67,6 +67,30 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 };
             }
 
+            // Camino rapido: si ya existe un .ipa pre-firmado (de una instalacion anterior) y el
+            // dispositivo ya esta en su lista de UDIDs, esto instala sin tocar App Store Connect
+            // ni el Mac remoto en absoluto. Solo cae al flujo completo (mas abajo) si el dispositivo
+            // es nuevo y "ios install" lo rechaza por provisioning profile invalido.
+            var preSignedIpaPath = ExpandPath(_configuration["IOS:DeviceKit:PreSignedIpaPath"]);
+            if (!string.IsNullOrWhiteSpace(preSignedIpaPath) && File.Exists(preSignedIpaPath))
+            {
+                _logger.LogInformation("[DeviceKit] Probando instalar con el .ipa ya firmado (sin App Store Connect)");
+                var quickInstallResult = await _deviceKitManager.InstallAppAsync(_processHelper, executable, preSignedIpaPath, udid);
+                if (quickInstallResult.Success)
+                {
+                    return new ActionResponse
+                    {
+                        Success = true,
+                        Message = "DeviceKit instalado correctamente (ipa ya firmado)",
+                        Data = new Dictionary<string, object> { ["udid"] = udid }
+                    };
+                }
+
+                _logger.LogInformation(
+                    "[DeviceKit] El .ipa ya firmado no sirvio para {Udid} (probablemente dispositivo nuevo) - probando el flujo completo: {Error}",
+                    udid, quickInstallResult.Error);
+            }
+
             try
             {
                 if (!await _appleClient.IsDeviceRegisteredAsync(udid))
@@ -102,6 +126,16 @@ namespace Mobile.Remote.Toolkit.Infrastructure.iOS
                 finally
                 {
                     File.Delete(tempIpaPath);
+                }
+
+                // El profile recien regenerado incluye TODOS los dispositivos habilitados (no solo
+                // este), asi que el .ipa recien firmado sirve como el nuevo "camino rapido" para
+                // cualquiera de ellos - se sobreescribe el cache para que la proxima instalacion
+                // (incluida la de este mismo dispositivo) no vuelva a tocar App Store Connect/Mac.
+                if (!string.IsNullOrWhiteSpace(preSignedIpaPath))
+                {
+                    await File.WriteAllBytesAsync(preSignedIpaPath, signedIpa);
+                    _logger.LogInformation("[DeviceKit] Cache de .ipa pre-firmado actualizado en {Path}", preSignedIpaPath);
                 }
 
                 return new ActionResponse
