@@ -209,7 +209,13 @@ namespace Mobile.Remote.Toolkit.Infrastructure.Android
                     };
                 }
 
-                var process = await _processHelper.StartBackgroundProcessAsync("scrcpy", arguments);
+                // scrcpy busca su propio adb (misma carpeta, luego PATH) si no se le indica otra cosa -
+                // en Tools/Android/scrcpy/ no hay adb.exe (vive en la carpeta hermana Tools/Android/adb/),
+                // así que sin esto cae al PATH del sistema y puede terminar usando una versión de adb
+                // distinta a la vendorizada (u otro adb server ya corriendo con otra versión), aunque el
+                // dispositivo sí aparezca en la lista via el adb interno que usa el resto de la app.
+                var scrcpyEnv = new Dictionary<string, string> { ["ADB"] = _processHelper.GetAdbPath() };
+                var process = await _processHelper.StartBackgroundProcessAsync("scrcpy", arguments, scrcpyEnv);
                 _mirrorRegistry.Register(serial, process);
 
                 return new ActionResponse
